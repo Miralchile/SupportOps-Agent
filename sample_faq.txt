@@ -1,0 +1,37 @@
+SupportOps Agent FAQ
+
+退款处理：
+用户申请退款时，先核验订单号、支付状态、发货状态和退款资格。
+如果问题涉及投诉、强烈不满、重复扣款或支付失败，应标记为中高风险，
+必要时转人工客服继续核实。
+
+支付失败但已扣款：
+如果用户反馈付款失败、银行卡或支付渠道已经扣款，请先安抚用户，
+再收集订单号、支付渠道、支付时间和扣款截图。客服需要核实订单是否创建成功，
+如确认重复扣款或异常扣款，应协助用户发起退款或转人工处理。
+
+账号安全与隐私：
+涉及账号被盗、异常登录、密码重置、隐私信息、身份证号、手机号或银行卡号时，
+不要要求用户在公开渠道发送完整敏感信息，应转人工安全专员处理。
+
+物流延迟：
+如果订单未发货或物流长时间未更新，客服应查询物流节点，说明预计处理方式，
+并根据平台规则判断是否需要补偿、改地址或转人工。
+
+Refund policy:
+If a customer asks for a refund, first verify the order number, payment status,
+and refund eligibility. Refund-related or complaint-related cases should be
+marked as medium or high risk and transferred to a human agent when necessary.
+
+Payment failure:
+If payment failed but money was deducted, ask the customer to provide the order
+number, payment channel, payment time, and screenshot. Check whether the order
+was created successfully before suggesting repayment.
+
+Account security:
+For suspicious login, password reset, account takeover, privacy, or identity
+verification issues, protect user data and transfer the case to a human agent.
+
+Shipping delay:
+If an order has not shipped or delivery is delayed, check the logistics status
+and tell the customer whether to wait, update the address, or contact support.

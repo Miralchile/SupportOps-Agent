@@ -1,0 +1,108 @@
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+class SupportChatRequest(BaseModel):
+    message: str
+
+
+class HumanReviewDecision(BaseModel):
+    action: Literal["approve", "edit", "reject"]
+    edited_reply: Optional[str] = None
+    reviewer_note: Optional[str] = None
+
+
+class TicketResponse(BaseModel):
+    id: int
+    instruction: str
+    category: str
+    intent: str
+    response: str
+    source: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AgentTraceResponse(BaseModel):
+    id: int
+    session_id: str
+    step_order: int
+    tool_name: str
+    tool_input: Optional[str]
+    tool_output: Optional[str]
+    latency_ms: int
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TicketsListResponse(BaseModel):
+    tickets: List[TicketResponse]
+    total: int
+
+
+class MetricsResponse(BaseModel):
+    ticket_total: int
+    category_distribution: Dict[str, int]
+    intent_distribution: Dict[str, int]
+    risk_level_distribution: Dict[str, int]
+    high_risk_ratio: float
+    human_transfer_ratio: float
+    top_intents: List[Dict[str, Any]]
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = "DashScope"
+    provider: str = "dashscope"
+    api_key: str
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    model: str = "qwen-plus"
+    embedding_model: str = "text-embedding-v3"
+    is_active: bool = True
+
+
+class ApiKeyUpdate(BaseModel):
+    name: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    embedding_model: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ApiKeyTestRequest(BaseModel):
+    api_key: Optional[str] = None
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    model: str = "qwen-plus"
+    embedding_model: str = "text-embedding-v3"
+
+
+class ApiKeyTestResponse(BaseModel):
+    status: str
+    chat_ok: bool
+    embedding_ok: bool
+    message: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiKeyResponse(BaseModel):
+    id: int
+    name: str
+    provider: str
+    masked_api_key: str
+    base_url: str
+    model: str
+    embedding_model: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

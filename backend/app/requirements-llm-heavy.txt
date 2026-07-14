@@ -1,0 +1,3 @@
+# LLM 相关大包
+llama-index-core==0.10.68.post1
+llama-index-postprocessor-dashscope-rerank-custom==0.1.0

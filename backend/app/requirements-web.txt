@@ -1,0 +1,11 @@
+# Web 框架
+fastapi==0.115.0
+uvicorn==0.31.0
+gunicorn==21.0.0
+python-multipart==0.0.11
+
+# 认证相关
+fastapi-jwt[authlib]==0.3.0
+python-jose==3.3.0
+authlib==1.3.0
+bcrypt==4.1.0

@@ -1,0 +1,30 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+
+# Logs, local databases, and editor files
+*.log
+*.sqlite
+*.sqlite3
+.DS_Store
+.idea/
+.vscode/
+
+# DeepDoc model weights are downloaded at runtime from InfiniFlow/deepdoc.
+backend/app/service/core/rag/res/deepdoc/*.onnx
+backend/app/service/core/rag/res/deepdoc/*.model

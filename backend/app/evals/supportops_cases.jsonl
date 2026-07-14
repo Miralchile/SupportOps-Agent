@@ -1,0 +1,9 @@
+{"id":"refund_01","question":"我要退款，这笔订单不是我下的","category":"refund","intent":"refund_request","need_human":true}
+{"id":"payment_01","question":"支付失败但银行卡已经扣款","category":"payment","intent":"payment_failed","need_human":true}
+{"id":"account_01","question":"我的账号被盗而且无法登录","category":"account","intent":"account_security","need_human":true}
+{"id":"privacy_01","question":"请删除我的个人信息和手机号","category":"privacy","intent":"privacy_request","need_human":true}
+{"id":"complaint_01","question":"服务太差了，我要正式投诉","category":"complaint","intent":"complaint","need_human":true}
+{"id":"technical_01","question":"应用打开后一直报错并闪退","category":"technical","intent":"technical_issue","need_human":false}
+{"id":"delivery_01","question":"我的快递到哪里了，什么时候能收到","category":"delivery","intent":"delivery_status","need_human":false}
+{"id":"product_01","question":"这个产品的批量导入功能怎么用","category":"product","intent":"product_inquiry","need_human":false}
+{"id":"general_01","question":"你们的工作时间是什么时候","category":"general","intent":"general_inquiry","need_human":false}
