@@ -1,5 +1,5 @@
 :root {
-  background-color: #f3f5f8;
+  background-color: #f4f6f8;
   font-size: 14px;
   line-height: 1.5;
   font-family:
@@ -16,9 +16,38 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+::selection {
+  color: #14213d;
+  background: #dce5ff;
+}
+
+:focus-visible {
+  outline-color: #3157d5;
+}
+
 .scrollbar-style {
   scrollbar-width: thin;
 }
 .scrollbar-style::-webkit-scrollbar {
   width: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
