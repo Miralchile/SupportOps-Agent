@@ -9,7 +9,20 @@ function App() {
       theme={{
         cssVar: true,
         token: {
-          colorPrimary: '#1F70FE',
+          colorPrimary: '#3157d5',
+          colorInfo: '#3157d5',
+          colorSuccess: '#12805c',
+          colorWarning: '#b15c11',
+          colorError: '#c13b32',
+          colorText: '#182230',
+          colorTextSecondary: '#667085',
+          colorBorder: '#d9e0e8',
+          colorBgLayout: '#f4f6f8',
+          borderRadius: 8,
+          borderRadiusLG: 12,
+          controlHeight: 38,
+          fontFamily:
+            'Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
         },
       }}
     >

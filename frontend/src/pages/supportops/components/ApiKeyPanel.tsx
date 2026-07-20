@@ -181,6 +181,7 @@ export default function ApiKeyPanel() {
               icon={<ExperimentOutlined />}
               loading={testingId === record.id}
               onClick={() => handleTestSaved(record)}
+              aria-label={`测试 ${record.name}`}
             />
           </Tooltip>
           <Tooltip title="编辑">
@@ -189,6 +190,7 @@ export default function ApiKeyPanel() {
               type="text"
               icon={<EditOutlined />}
               onClick={() => openEditModal(record)}
+              aria-label={`编辑 ${record.name}`}
             />
           </Tooltip>
           <Tooltip title="设为启用">
@@ -198,11 +200,18 @@ export default function ApiKeyPanel() {
               icon={<CheckCircleOutlined />}
               disabled={record.is_active}
               onClick={() => handleActivate(record)}
+              aria-label={`启用 ${record.name}`}
             />
           </Tooltip>
           <Popconfirm title="删除这个 API Key？" onConfirm={() => handleDelete(record)}>
             <Tooltip title="删除">
-              <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                aria-label={`删除 ${record.name}`}
+              />
             </Tooltip>
           </Popconfirm>
         </Space>

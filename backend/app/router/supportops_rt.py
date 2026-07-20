@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from models.agent_trace import AgentTrace
 from models.ticket import Ticket
+from models.dataset_import_job import DatasetImportJob
 from schemas.supportops import (
     AgentTraceResponse,
     ApiKeyCreate,
@@ -14,6 +15,7 @@ from schemas.supportops import (
     ApiKeyTestResponse,
     ApiKeyUpdate,
     HumanReviewDecision,
+    DatasetImportJobResponse,
     MetricsResponse,
     SupportChatRequest,
     TicketResponse,
@@ -31,7 +33,8 @@ from service.supportops.api_key_service import (
     test_saved_api_key,
     update_api_key,
 )
-from service.supportops.data_ingestion import ingest_ticket_csv, upload_support_docs
+from service.supportops.data_ingestion import ingest_dataset_content, ingest_ticket_csv, upload_support_docs
+from service.supportops.dataset_adapters import get_dataset_adapter, supported_datasets
 from service.supportops.support_agent import (
     get_pending_review,
     normalize_session_id,
@@ -43,6 +46,7 @@ from service.supportops.tools import safe_json_loads
 from utils.database import get_db
 
 router = APIRouter(prefix="/supportops", tags=["SupportOps Agent"])
+MAX_DATASET_UPLOAD_BYTES = 512 * 1024 * 1024
 
 
 def _current_user_id(credentials: JwtAuthorizationCredentials) -> str:
@@ -67,6 +71,59 @@ async def upload_tickets(
     if result["status"] == "failed":
         raise HTTPException(status_code=400, detail=result)
     return result
+
+
+@router.get("/datasets")
+async def list_supported_datasets(
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+):
+    _current_user_id(credentials)
+    return {"datasets": supported_datasets()}
+
+
+@router.post("/datasets/import")
+async def import_dataset(
+    dataset: str = Query(..., description="supportops_csv, bitext, tweetsumm 或 msdialog"),
+    file: UploadFile = File(...),
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+    db: Session = Depends(get_db),
+):
+    user_id = _current_user_id(credentials)
+    try:
+        get_dataset_adapter(dataset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    content = await file.read(MAX_DATASET_UPLOAD_BYTES + 1)
+    if len(content) > MAX_DATASET_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="数据集文件不能超过 512 MB")
+    with use_api_key_config(get_active_api_key_config(db, user_id)):
+        result = ingest_dataset_content(
+            db,
+            user_id,
+            dataset,
+            file.filename or f"{dataset}.data",
+            content,
+        )
+    if result["status"] == "failed":
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@router.get("/dataset_imports", response_model=list[DatasetImportJobResponse])
+async def list_dataset_imports(
+    limit: int = Query(20, ge=1, le=100),
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+    db: Session = Depends(get_db),
+):
+    user_id = _current_user_id(credentials)
+    jobs = (
+        db.query(DatasetImportJob)
+        .filter(DatasetImportJob.user_id == user_id)
+        .order_by(DatasetImportJob.created_at.desc(), DatasetImportJob.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [DatasetImportJobResponse.from_orm(job) for job in jobs]
 
 
 @router.post("/upload_docs")

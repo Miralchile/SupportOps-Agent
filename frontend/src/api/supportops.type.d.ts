@@ -5,6 +5,14 @@ declare namespace API {
     inserted: number
     skipped: number
     duplicates: number
+    job_id?: number
+    dataset_name?: string
+    dataset_version?: string
+    source_type?: string
+    checksum?: string
+    total_rows?: number
+    pii_redacted?: number
+    split_counts?: Record<string, number>
     errors: string[]
     index_result?: {
       indexed: number
@@ -38,8 +46,37 @@ declare namespace API {
     intent: string
     response: string
     source: string
+    source_type: string
+    external_id?: string
+    conversation_id?: string
+    language: string
+    dataset_split: string
+    pii_redacted: boolean
+    quality_score: number
+    import_job_id?: number
     created_at: string
     updated_at: string
+  }
+
+  interface SupportDatasetImportJob {
+    id: number
+    dataset_name: string
+    dataset_version: string
+    source_filename: string
+    source_type: 'real_anonymized' | 'real_derived' | 'synthetic' | 'user_provided' | 'unknown'
+    status: string
+    checksum: string
+    total_rows: number
+    accepted_rows: number
+    rejected_rows: number
+    duplicate_rows: number
+    pii_redacted_rows: number
+    indexed_rows: number
+    split_counts: Record<string, number>
+    import_options: Record<string, unknown>
+    errors: unknown[]
+    started_at: string
+    completed_at?: string
   }
 
   interface SupportTicketsResponse {

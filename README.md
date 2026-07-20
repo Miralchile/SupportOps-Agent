@@ -64,6 +64,28 @@ flowchart TD
 
 可直接上传项目根目录的 `sample_tickets.csv`。FAQ / 产品说明支持 PDF、DOCX、TXT、MD。
 
+### 多源数据集接入
+
+当前版本增加了带来源治理的数据集导入流水线，而不是把外部文件直接当作可信生产工单：
+
+- `TweetSumm`：来自真实 Twitter 客服对话的人工摘要，标记为 `real_derived`；仓库已保存官方 879/110/110 train/validation/test 数据和许可证。
+- `MSDialog`：真实匿名技术支持对话，标记为 `real_anonymized`；已实现 JSON 适配器，但官方要求研究者申请访问，项目不会绕过授权分发数据。
+- `Bitext`：混合合成客服数据，强制标记为 `synthetic`。
+- 标准 CSV：用户自有数据，标记为 `user_provided`。
+
+导入时会执行 HTML 清理、常见邮箱/电话/银行卡/IP 脱敏、内容哈希与幂等去重、会话级数据切分、质量打分、批次审计，并分批写入 Elasticsearch。`dataset_import_jobs` 保存文件校验和、数据版本、来源真实性、接收/拒绝/去重/脱敏/索引数量和导入参数。
+
+为避免未经确认的外部 API 成本，外部大数据集默认只建立 Elasticsearch 关键词索引；CLI 显式增加 `--with-embeddings` 才生成向量：
+
+```bash
+docker exec supportops_api python scripts/import_support_dataset.py \
+  --dataset tweetsumm \
+  --file /datasets/external/tweetsumm/final_train_tweetsum.jsonl \
+  --user-id 3
+```
+
+数据来源、许可和真实性边界见 `data/external/tweetsumm/README.md`。
+
 ## 启动方式
 
 ```bash
@@ -107,6 +129,9 @@ JWT_SECRET_KEY=supportops_local_secret
 - `POST /login`: 登录
 - `POST /register`: 注册
 - `POST /supportops/upload_tickets`: 上传历史工单 CSV
+- `GET /supportops/datasets`: 查询支持的数据集及真实性类型
+- `POST /supportops/datasets/import?dataset=tweetsumm`: 导入标准 CSV、Bitext、TweetSumm 或经授权的 MSDialog
+- `GET /supportops/dataset_imports`: 查询数据导入批次与质量统计
 - `POST /supportops/upload_docs`: 上传 FAQ / 产品说明文档
 - `POST /supportops/chat?session_id=xxx`: SSE 流式客服 Agent 问答
 - `POST /supportops/chat/resume?session_id=xxx`: 提交人工审核决定并恢复工作流

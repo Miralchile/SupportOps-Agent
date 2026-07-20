@@ -15,6 +15,23 @@ export function uploadTickets(
   })
 }
 
+export function importDataset(
+  params: { dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'; file: File },
+  options?: AxiosRequestConfig,
+) {
+  const form = new FormData()
+  form.append('file', params.file)
+  return request.post<API.SupportUploadResult>('/supportops/datasets/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params: { dataset: params.dataset },
+    ...options,
+  })
+}
+
+export function datasetImports(options?: AxiosRequestConfig) {
+  return request.get<API.SupportDatasetImportJob[]>('/supportops/dataset_imports', options)
+}
+
 export function uploadDocs(
   params: { files: File[]; session_id?: string },
   options?: AxiosRequestConfig,

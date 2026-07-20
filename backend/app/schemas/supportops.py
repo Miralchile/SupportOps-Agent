@@ -21,6 +21,14 @@ class TicketResponse(BaseModel):
     intent: str
     response: str
     source: str
+    source_type: str
+    external_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    language: str
+    dataset_split: str
+    pii_redacted: bool
+    quality_score: float
+    import_job_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -46,6 +54,30 @@ class AgentTraceResponse(BaseModel):
 class TicketsListResponse(BaseModel):
     tickets: List[TicketResponse]
     total: int
+
+
+class DatasetImportJobResponse(BaseModel):
+    id: int
+    dataset_name: str
+    dataset_version: str
+    source_filename: str
+    source_type: str
+    status: str
+    checksum: str
+    total_rows: int
+    accepted_rows: int
+    rejected_rows: int
+    duplicate_rows: int
+    pii_redacted_rows: int
+    indexed_rows: int
+    split_counts: Dict[str, int]
+    import_options: Dict[str, Any]
+    errors: List[Any]
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class MetricsResponse(BaseModel):

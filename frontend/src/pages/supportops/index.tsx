@@ -203,6 +203,7 @@ export default function SupportOpsPage() {
   const [ticketTotal, setTicketTotal] = useState(0)
   const [metrics, setMetrics] = useState<API.SupportMetrics>()
   const [lastDocsUpload, setLastDocsUpload] = useState<API.SupportUploadDocsResult>()
+  const [datasetImports, setDatasetImports] = useState<API.SupportDatasetImportJob[]>([])
   const [workflowStatus, setWorkflowStatus] = useState<{
     framework: string
     backend: string
@@ -212,15 +213,17 @@ export default function SupportOpsPage() {
   async function refreshData() {
     setTicketsLoading(true)
     try {
-      const [ticketRes, metricRes, workflowRes] = await Promise.all([
+      const [ticketRes, metricRes, workflowRes, importRes] = await Promise.all([
         api.supportops.tickets({ loading: false }),
         api.supportops.metrics({ loading: false }),
         api.supportops.workflowStatus({ loading: false }),
+        api.supportops.datasetImports({ loading: false }),
       ])
       setTickets(ticketRes.data.tickets)
       setTicketTotal(ticketRes.data.total)
       setMetrics(metricRes.data)
       setWorkflowStatus(workflowRes.data)
+      setDatasetImports(importRes.data)
     } finally {
       setTicketsLoading(false)
     }
@@ -248,6 +251,20 @@ export default function SupportOpsPage() {
       refreshData()
     } catch (error) {
       antdMessage.error((error as Error)?.message || 'CSV 上传失败')
+    }
+  }
+
+  async function handleImportDataset(
+    dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog',
+    file: File,
+  ) {
+    try {
+      const { data } = await api.supportops.importDataset({ dataset, file })
+      antdMessage.success(data.message)
+      if (data.errors?.length) antdMessage.warning(String(data.errors[0]))
+      refreshData()
+    } catch (error) {
+      antdMessage.error((error as Error)?.message || '数据集导入失败')
     }
   }
 
@@ -613,7 +630,12 @@ export default function SupportOpsPage() {
 
   const riskPercent = Math.round((metrics?.high_risk_ratio || 0) * 100)
   const totalLatency = traces.reduce((total, item) => total + (item.latency_ms || 0), 0)
-  const currentStatus = pendingReview ? '等待人工审核' : loading ? 'Agent 执行中' : '服务正常'
+  const currentStatus = pendingReview ? '等待人工审核' : loading ? 'Agent 执行中' : '服务就绪'
+  const persistenceStatus = !workflowStatus
+    ? '同步中'
+    : workflowStatus.durable
+      ? '持久化'
+      : '内存模式'
   const starterQuestions = [
     '支付失败但已经扣款，应该如何处理？',
     '用户要求退款并投诉服务体验',
@@ -632,7 +654,7 @@ export default function SupportOpsPage() {
         </div>
         <div className="supportops-topbar__status">
           <span className="supportops-live-dot" />
-          Production workspace
+          本地运营工作区
         </div>
         <Space className="supportops-page__account" size={12}>
           <div className="supportops-user">
@@ -642,7 +664,13 @@ export default function SupportOpsPage() {
               <small>客服运营人员</small>
             </span>
           </div>
-          <Button className="supportops-logout" type="text" icon={<LogoutOutlined />} onClick={logout}>
+          <Button
+            className="supportops-logout"
+            type="text"
+            icon={<LogoutOutlined />}
+            onClick={logout}
+            aria-label="退出登录"
+          >
             退出登录
           </Button>
         </Space>
@@ -652,7 +680,7 @@ export default function SupportOpsPage() {
         <div className="supportops-page__header">
           <div>
             <div className="supportops-page__eyebrow">CUSTOMER SUPPORT CONTROL CENTER</div>
-            <div className="supportops-page__title">智能客服运营工作台</div>
+            <h1 className="supportops-page__title">智能客服运营工作台</h1>
             <div className="supportops-page__subtitle">统一处理客服问答、风险升级、知识检索与人工审核</div>
           </div>
           <div className="supportops-session-card">
@@ -665,7 +693,7 @@ export default function SupportOpsPage() {
           <div className="supportops-status-card">
             <span className="supportops-status-card__icon is-green"><CloudServerOutlined /></span>
             <div><small>Agent Runtime</small><strong>{workflowStatus?.framework || 'LangGraph'}</strong></div>
-            <span className="supportops-status-card__state"><CheckCircleFilled /> {workflowStatus?.durable ? '持久化' : '连接中'}</span>
+            <span className="supportops-status-card__state"><CheckCircleFilled /> {persistenceStatus}</span>
           </div>
           <div className="supportops-status-card">
             <span className="supportops-status-card__icon is-blue"><DatabaseOutlined /></span>
@@ -723,7 +751,7 @@ export default function SupportOpsPage() {
                     </div>
 
                     <div className="supportops-chat">
-                      <div className="supportops-chat__messages">
+                      <div className="supportops-chat__messages" aria-live="polite" aria-busy={loading}>
                         {messages.length === 0 ? (
                           <div className="supportops-chat-empty">
                             <div className="supportops-chat-empty__icon"><MessageOutlined /></div>
@@ -731,7 +759,7 @@ export default function SupportOpsPage() {
                             <p>输入客户问题，系统将自动执行意图分类、知识检索、风险判断与回复生成。</p>
                             <div className="supportops-chat-empty__suggestions">
                               {starterQuestions.map((item) => (
-                                <button key={item} onClick={() => setQuestion(item)}>{item}</button>
+                                <button type="button" key={item} onClick={() => setQuestion(item)}>{item}</button>
                               ))}
                             </div>
                           </div>
@@ -757,6 +785,7 @@ export default function SupportOpsPage() {
                           value={question}
                           onChange={(event) => setQuestion(event.target.value)}
                           placeholder="粘贴客户问题，或描述需要处理的服务场景…"
+                          aria-label="客户问题"
                           autoSize={{ minRows: 2, maxRows: 5 }}
                           onPressEnter={(event) => {
                             if (!event.shiftKey) {
@@ -859,8 +888,10 @@ export default function SupportOpsPage() {
                         conversationHistory.map((item, index) => (
                           <button
                             key={item.id}
-                            className="supportops-question-history__item"
+                            className={`supportops-question-history__item${item.sessionId === sessionId ? ' is-active' : ''}`}
                             onClick={() => restoreConversation(item)}
+                            type="button"
+                            aria-current={item.sessionId === sessionId ? 'true' : undefined}
                           >
                             <span>{index + 1}</span>
                             <div className="supportops-question-history__content">
@@ -914,7 +945,9 @@ export default function SupportOpsPage() {
                     total={ticketTotal}
                     loading={ticketsLoading}
                     lastDocsUpload={lastDocsUpload}
+                    importJobs={datasetImports}
                     onUploadTickets={handleUploadTickets}
+                    onImportDataset={handleImportDataset}
                     onUploadDocs={handleUploadDocs}
                     onRefresh={refreshData}
                   />

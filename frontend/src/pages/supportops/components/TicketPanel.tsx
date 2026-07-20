@@ -1,19 +1,26 @@
 import { InboxOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, Button, List, Space, Table, Tag, Upload } from 'antd'
+import { Alert, Button, List, Select, Space, Table, Tag, Upload } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
+import { useState } from 'react'
 
 type Props = {
   tickets: API.SupportTicket[]
   total: number
   loading?: boolean
   lastDocsUpload?: API.SupportUploadDocsResult
+  importJobs: API.SupportDatasetImportJob[]
   onUploadTickets: (file: File) => Promise<void>
+  onImportDataset: (
+    dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog',
+    file: File,
+  ) => Promise<void>
   onUploadDocs: (files: File[]) => Promise<void>
   onRefresh: () => void
 }
 
 export default function TicketPanel(props: Props) {
+  const [datasetType, setDatasetType] = useState<'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'>('tweetsumm')
   const columns: ColumnsType<API.SupportTicket> = [
     {
       title: '问题',
@@ -32,9 +39,20 @@ export default function TicketPanel(props: Props) {
     },
     {
       title: '来源',
-      dataIndex: 'source',
-      width: 130,
-      ellipsis: true,
+      dataIndex: 'source_type',
+      width: 150,
+      render(value: API.SupportTicket['source_type'], row) {
+        const color = value === 'real_anonymized' ? 'green' : value === 'synthetic' ? 'purple' : 'blue'
+        return <Tag color={color}>{value || row.source}</Tag>
+      },
+    },
+    {
+      title: '数据切分',
+      dataIndex: 'dataset_split',
+      width: 100,
+      render(value: string) {
+        return <Tag>{value}</Tag>
+      },
     },
     {
       title: '时间',
@@ -68,6 +86,28 @@ export default function TicketPanel(props: Props) {
             </Button>
           </Upload>
 
+          <Select
+            value={datasetType}
+            onChange={setDatasetType}
+            style={{ width: 150 }}
+            options={[
+              { value: 'tweetsumm', label: 'TweetSumm · 真实衍生' },
+              { value: 'msdialog', label: 'MSDialog · 真实匿名' },
+              { value: 'bitext', label: 'Bitext · 合成' },
+              { value: 'supportops_csv', label: '标准 CSV · 自有' },
+            ]}
+          />
+          <Upload
+            accept={datasetType === 'msdialog' ? '.json' : datasetType === 'tweetsumm' ? '.jsonl' : '.csv'}
+            showUploadList={false}
+            beforeUpload={(file) => {
+              props.onImportDataset(datasetType, file)
+              return false
+            }}
+          >
+            <Button icon={<UploadOutlined />}>导入外部数据集</Button>
+          </Upload>
+
           <Upload
             multiple
             accept=".pdf,.doc,.docx,.txt,.md,.markdown"
@@ -80,7 +120,12 @@ export default function TicketPanel(props: Props) {
             <Button icon={<InboxOutlined />}>导入知识文档</Button>
           </Upload>
 
-          <Button icon={<ReloadOutlined />} onClick={props.onRefresh} />
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={props.onRefresh}
+            aria-label="刷新工单数据"
+            title="刷新工单数据"
+          />
         </Space>
       </div>
 
@@ -121,6 +166,27 @@ export default function TicketPanel(props: Props) {
         />
       ) : null}
 
+      {props.importJobs[0] ? (
+        <Alert
+          className="supportops-upload-status"
+          type={props.importJobs[0].status === 'success' ? 'success' : 'warning'}
+          showIcon
+          message={
+            <Space wrap>
+              <strong>最近数据批次 #{props.importJobs[0].id}</strong>
+              <Tag color={props.importJobs[0].source_type === 'real_anonymized' ? 'green' : 'purple'}>
+                {props.importJobs[0].dataset_name} · {props.importJobs[0].source_type}
+              </Tag>
+              <span>接收 {props.importJobs[0].accepted_rows}</span>
+              <span>去重 {props.importJobs[0].duplicate_rows}</span>
+              <span>脱敏 {props.importJobs[0].pii_redacted_rows}</span>
+              <span>索引 {props.importJobs[0].indexed_rows}</span>
+            </Space>
+          }
+          description={`train ${props.importJobs[0].split_counts.train || 0} · validation ${props.importJobs[0].split_counts.validation || 0} · test ${props.importJobs[0].split_counts.test || 0}`}
+        />
+      ) : null}
+
       <Table<API.SupportTicket>
         rowKey="id"
         size="small"
@@ -128,7 +194,7 @@ export default function TicketPanel(props: Props) {
         dataSource={props.tickets}
         loading={props.loading}
         pagination={false}
-        scroll={{ x: 760, y: 260 }}
+        scroll={{ x: 900, y: 260 }}
       />
     </div>
   )

@@ -5,9 +5,9 @@
 }
 
 .ant-dropdown-menu {
-  color: white;
-  background-color: black;
-  --ant-color-bg-elevated: black;
-  --ant-color-text: white;
-  --ant-control-item-bg-hover: rgba(255, 255, 255, 0.3);
+  --ant-color-bg-elevated: #ffffff;
+  --ant-color-text: #182230;
+  --ant-control-item-bg-hover: #f2f4f7;
+  border: 1px solid #e4e7ec;
+  box-shadow: 0 14px 36px rgba(16, 24, 40, 0.14);
 }

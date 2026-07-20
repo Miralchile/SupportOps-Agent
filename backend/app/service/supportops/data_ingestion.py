@@ -1,3 +1,5 @@
+import datetime
+import hashlib
 import os
 import uuid
 from typing import Any, Dict, List, Optional
@@ -5,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from models.ticket import Ticket
+from models.dataset_import_job import DatasetImportJob
 from service.core.api.utils.file_utils import get_project_base_directory
 from service.core.file_parse import execute_insert_process
 from service.core.rag.utils.es_conn import ESConnection
@@ -13,7 +16,7 @@ from service.supportops.similar_ticket_search import (
     docs_index_name,
     ensure_supportops_index,
 )
-from service.supportops.ticket_cleaner import clean_ticket_rows
+from service.supportops.dataset_adapters import get_dataset_adapter
 from service.supportops.tools import normalize_question
 
 
@@ -28,33 +31,103 @@ def _count_index_documents(index_name: str) -> int:
         return 0
 
 
-def ingest_ticket_csv(db: Session, user_id: str, filename: str, content: bytes) -> Dict[str, Any]:
-    cleaned = clean_ticket_rows(content, source=filename or "csv")
-    rows = cleaned["rows"]
+def _job_result(job: DatasetImportJob, message: str) -> Dict[str, Any]:
+    return {
+        "status": job.status,
+        "message": message,
+        "job_id": job.id,
+        "dataset_name": job.dataset_name,
+        "dataset_version": job.dataset_version,
+        "source_type": job.source_type,
+        "checksum": job.checksum,
+        "total_rows": job.total_rows,
+        "inserted": job.accepted_rows,
+        "skipped": job.rejected_rows,
+        "duplicates": job.duplicate_rows,
+        "pii_redacted": job.pii_redacted_rows,
+        "split_counts": job.split_counts or {},
+        "errors": job.errors or [],
+        "index_result": {"indexed": job.indexed_rows, "errors": []},
+    }
+
+
+def ingest_dataset_content(
+    db: Session,
+    user_id: str,
+    dataset_name: str,
+    filename: str,
+    content: bytes,
+    limit: int | None = None,
+    with_embeddings: bool = False,
+) -> Dict[str, Any]:
+    checksum = hashlib.sha256(content).hexdigest()
+    adapter = get_dataset_adapter(dataset_name)
+    existing_job = (
+        db.query(DatasetImportJob)
+        .filter(
+            DatasetImportJob.user_id == user_id,
+            DatasetImportJob.dataset_name == adapter.dataset_name,
+            DatasetImportJob.checksum == checksum,
+        )
+        .first()
+    )
+    if existing_job:
+        return _job_result(existing_job, "相同数据文件已经导入，本次未重复写入")
+
+    adapted = adapter.adapt(content, filename, limit=limit)
+    rows = adapted.records
+    job = DatasetImportJob(
+        user_id=user_id,
+        dataset_name=adapted.dataset_name,
+        dataset_version=adapted.dataset_version,
+        source_filename=filename,
+        source_type=adapted.source_type,
+        status="processing",
+        checksum=checksum,
+        import_options={"with_embeddings": with_embeddings},
+        total_rows=len(rows) + adapted.rejected,
+        rejected_rows=adapted.rejected,
+        errors=adapted.errors,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
     if not rows:
+        job.status = "failed"
+        job.completed_at = datetime.datetime.utcnow()
+        db.commit()
         return {
             "status": "failed",
             "message": "没有可导入的工单数据",
+            "job_id": job.id,
             "inserted": 0,
-            "skipped": cleaned["skipped"],
-            "duplicates": cleaned["duplicates_in_file"],
-            "errors": cleaned["errors"],
+            "skipped": adapted.rejected,
+            "duplicates": 0,
+            "errors": adapted.errors,
             "index_result": {"indexed": 0, "errors": []},
         }
 
-    existing = db.query(Ticket.instruction).filter(Ticket.user_id == user_id).all()
+    existing = db.query(Ticket.instruction, Ticket.content_hash).filter(Ticket.user_id == user_id).all()
     existing_questions = {normalize_question(row[0]) for row in existing}
+    existing_hashes = {row[1] for row in existing if row[1]}
 
     inserted_tickets: List[Ticket] = []
-    duplicate_count = cleaned["duplicates_in_file"]
+    duplicate_count = 0
+    split_counts: Dict[str, int] = {}
+    pii_redacted_rows = 0
 
     for row in rows:
         question_key = normalize_question(row["instruction"])
-        if question_key in existing_questions:
+        if question_key in existing_questions or row["content_hash"] in existing_hashes:
             duplicate_count += 1
             continue
         existing_questions.add(question_key)
-        ticket = Ticket(user_id=user_id, **row)
+        existing_hashes.add(row["content_hash"])
+        split = row["dataset_split"]
+        split_counts[split] = split_counts.get(split, 0) + 1
+        pii_redacted_rows += int(row["pii_redacted"])
+        ticket = Ticket(user_id=user_id, import_job_id=job.id, **row)
         db.add(ticket)
         inserted_tickets.append(ticket)
 
@@ -63,18 +136,29 @@ def ingest_ticket_csv(db: Session, user_id: str, filename: str, content: bytes) 
         db.commit()
     except Exception:
         db.rollback()
+        job = db.query(DatasetImportJob).filter(DatasetImportJob.id == job.id).first()
+        if job:
+            job.status = "failed"
+            job.errors = list(job.errors or []) + ["数据库写入失败"]
+            job.completed_at = datetime.datetime.utcnow()
+            db.commit()
         raise
 
-    index_result = bulk_index_tickets(user_id, inserted_tickets)
-    return {
-        "status": "success",
-        "message": f"成功导入 {len(inserted_tickets)} 条工单",
-        "inserted": len(inserted_tickets),
-        "skipped": cleaned["skipped"],
-        "duplicates": duplicate_count,
-        "errors": cleaned["errors"],
-        "index_result": index_result,
-    }
+    index_result = bulk_index_tickets(user_id, inserted_tickets, include_embeddings=with_embeddings)
+    job.accepted_rows = len(inserted_tickets)
+    job.duplicate_rows = duplicate_count
+    job.pii_redacted_rows = pii_redacted_rows
+    job.indexed_rows = int(index_result.get("indexed") or 0)
+    job.split_counts = split_counts
+    job.errors = list(job.errors or []) + list(index_result.get("errors") or [])[:100]
+    job.status = "success" if not index_result.get("errors") else "partial_success"
+    job.completed_at = datetime.datetime.utcnow()
+    db.commit()
+    return _job_result(job, f"成功导入 {len(inserted_tickets)} 条工单，过滤 {duplicate_count} 条重复数据")
+
+
+def ingest_ticket_csv(db: Session, user_id: str, filename: str, content: bytes) -> Dict[str, Any]:
+    return ingest_dataset_content(db, user_id, "supportops_csv", filename, content, with_embeddings=True)
 
 
 def upload_support_docs(

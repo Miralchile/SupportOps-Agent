@@ -34,10 +34,14 @@ def _ticket_text(ticket: Ticket) -> str:
     return f"用户问题：{ticket.instruction}\n标准回复：{ticket.response}"
 
 
-def _build_ticket_documents(tickets: Iterable[Ticket], index_name: str) -> List[Dict[str, Any]]:
+def _build_ticket_documents(
+    tickets: Iterable[Ticket],
+    index_name: str,
+    include_embeddings: bool = True,
+) -> List[Dict[str, Any]]:
     ticket_list = list(tickets)
     texts = [_ticket_text(ticket) for ticket in ticket_list]
-    embeddings = generate_embedding(texts) if texts else []
+    embeddings = generate_embedding(texts) if texts and include_embeddings else [None] * len(texts)
     if not isinstance(embeddings, list) or len(embeddings) != len(texts):
         embeddings = [None] * len(texts)
     now = str(datetime.datetime.now()).replace("T", " ")[:19]
@@ -74,19 +78,30 @@ def _build_ticket_documents(tickets: Iterable[Ticket], index_name: str) -> List[
     return documents
 
 
-def bulk_index_tickets(user_id: str, tickets: Iterable[Ticket]) -> Dict[str, Any]:
+def bulk_index_tickets(
+    user_id: str,
+    tickets: Iterable[Ticket],
+    batch_size: int = 64,
+    include_embeddings: bool = True,
+) -> Dict[str, Any]:
     index_name = ticket_index_name(user_id)
     ticket_list = list(tickets)
     if not ticket_list:
         return {"indexed": 0, "errors": []}
 
     ensure_supportops_index(index_name)
-    documents = _build_ticket_documents(ticket_list, index_name)
-    try:
-        errors = ESConnection().insert(documents=documents, indexName=index_name)
-        return {"indexed": len(documents) - len(errors), "errors": errors}
-    except Exception as exc:
-        return {"indexed": 0, "errors": [str(exc)]}
+    indexed = 0
+    errors: List[Any] = []
+    for offset in range(0, len(ticket_list), max(1, batch_size)):
+        batch = ticket_list[offset:offset + max(1, batch_size)]
+        documents = _build_ticket_documents(batch, index_name, include_embeddings=include_embeddings)
+        try:
+            batch_errors = ESConnection().insert(documents=documents, indexName=index_name) or []
+            indexed += len(documents) - len(batch_errors)
+            errors.extend(batch_errors)
+        except Exception as exc:
+            errors.append({"batch_offset": offset, "error": str(exc)})
+    return {"indexed": indexed, "errors": errors}
 
 
 def _fallback_search(db: Session, user_id: str, question: str, top_k: int) -> List[Dict[str, Any]]:
