@@ -16,7 +16,7 @@ export function uploadTickets(
 }
 
 export function importDataset(
-  params: { dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'; file: File },
+  params: { dataset: 'supportops_csv' | 'tweetsumm' | 'msdialog'; file: File },
   options?: AxiosRequestConfig,
 ) {
   const form = new FormData()
@@ -26,6 +26,15 @@ export function importDataset(
     params: { dataset: params.dataset },
     ...options,
   })
+}
+
+export function importBundledDataset(dataset: 'tweetsumm', options?: AxiosRequestConfig) {
+  return request.post<{
+    dataset: string
+    inserted: number
+    message: string
+    results: { file: string; status: string; message: string; inserted: number }[]
+  }>('/supportops/datasets/import_bundled', undefined, { params: { dataset }, ...options })
 }
 
 export function uploadDocs(

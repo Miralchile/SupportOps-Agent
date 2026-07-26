@@ -65,7 +65,11 @@ def ingest_dataset_content(
         .first()
     )
     if existing_job:
-        return _job_result(existing_job, "相同数据文件已经导入，本次未重复写入")
+        # 复用历史批次信息，但"本次新增/去重"按本请求的实际情况报告
+        result = _job_result(existing_job, "相同数据文件已经导入，本次未重复写入")
+        result["duplicates"] = int(result.get("inserted") or 0)
+        result["inserted"] = 0
+        return result
 
     adapted = adapter.adapt(content, filename, limit=limit)
     rows = adapted.records

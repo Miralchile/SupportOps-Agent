@@ -2,7 +2,7 @@ import json
 import unittest
 
 from service.supportops.data_quality import canonical_record, deterministic_split, redact_pii
-from service.supportops.dataset_adapters import BitextAdapter, MSDialogAdapter, SupportOpsCsvAdapter, TweetSummAdapter
+from service.supportops.dataset_adapters import MSDialogAdapter, SupportOpsCsvAdapter, TweetSummAdapter
 
 
 class DataQualityTest(unittest.TestCase):
@@ -36,12 +36,6 @@ class DatasetAdapterTest(unittest.TestCase):
         result = SupportOpsCsvAdapter().adapt(content, "legacy.csv")
         self.assertEqual(len(result.records), 1)
         self.assertEqual(result.records[0]["source_type"], "user_provided")
-
-    def test_bitext_is_explicitly_synthetic(self):
-        content = b"instruction,category,intent,response\nRefund please,refund,refund_request,Open a ticket\n"
-        result = BitextAdapter().adapt(content, "bitext.csv")
-        self.assertEqual(result.source_type, "synthetic")
-        self.assertEqual(result.records[0]["source_type"], "synthetic")
 
     def test_msdialog_uses_selected_answer_and_preserves_dialog_metadata(self):
         payload = {

@@ -86,12 +86,6 @@ class SupportOpsCsvAdapter(DatasetAdapter):
         return self.result(records, rejected, errors)
 
 
-class BitextAdapter(SupportOpsCsvAdapter):
-    dataset_name = "bitext_customer_support"
-    dataset_version = "27k-v11"
-    source_type = "synthetic"
-
-
 class MSDialogAdapter(DatasetAdapter):
     dataset_name = "msdialog"
     dataset_version = "complete"
@@ -225,8 +219,6 @@ class TweetSummAdapter(DatasetAdapter):
 
 _ADAPTERS = {
     "supportops_csv": SupportOpsCsvAdapter,
-    "bitext": BitextAdapter,
-    "bitext_customer_support": BitextAdapter,
     "msdialog": MSDialogAdapter,
     "tweetsumm": TweetSummAdapter,
 }
@@ -243,7 +235,7 @@ def get_dataset_adapter(name: str) -> DatasetAdapter:
 def supported_datasets() -> List[Dict[str, str]]:
     unique = {
         adapter.dataset_name: adapter
-        for adapter in (SupportOpsCsvAdapter, BitextAdapter, MSDialogAdapter, TweetSummAdapter)
+        for adapter in (SupportOpsCsvAdapter, MSDialogAdapter, TweetSummAdapter)
     }
     return [
         {

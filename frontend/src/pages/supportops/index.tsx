@@ -259,7 +259,7 @@ export default function SupportOpsPage() {
   }
 
   async function handleImportDataset(
-    dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog',
+    dataset: 'supportops_csv' | 'tweetsumm' | 'msdialog',
     file: File,
   ) {
     try {
@@ -269,6 +269,19 @@ export default function SupportOpsPage() {
       refreshData()
     } catch (error) {
       antdMessage.error((error as Error)?.message || '数据集导入失败')
+    }
+  }
+
+  async function handleImportBundled(dataset: 'tweetsumm') {
+    try {
+      const { data } = await api.supportops.importBundledDataset(dataset)
+      antdMessage.success(data.message)
+      data.results
+        ?.filter((item) => item.status !== 'success')
+        .forEach((item) => antdMessage.warning(`${item.file}：${item.message}`))
+      refreshData()
+    } catch (error) {
+      antdMessage.error((error as Error)?.message || '内置数据集导入失败')
     }
   }
 
@@ -965,6 +978,7 @@ export default function SupportOpsPage() {
                     lastDocsUpload={lastDocsUpload}
                     onUploadTickets={handleUploadTickets}
                     onImportDataset={handleImportDataset}
+                    onImportBundled={handleImportBundled}
                     onUploadDocs={handleUploadDocs}
                     onUpdateTicket={handleUpdateTicket}
                     onRefresh={refreshData}

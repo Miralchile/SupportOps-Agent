@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Security, UploadFile, status
 from fastapi.responses import StreamingResponse
 from fastapi_jwt import JwtAuthorizationCredentials
@@ -52,6 +54,16 @@ from utils.database import get_db
 router = APIRouter(prefix="/supportops", tags=["SupportOps Agent"])
 MAX_DATASET_UPLOAD_BYTES = 512 * 1024 * 1024
 
+# 随仓库内置、可一键导入的数据集（挂载在容器 /datasets 下）
+BUNDLED_DATASET_DIR = os.getenv("BUNDLED_DATA_DIR", "/datasets/external")
+BUNDLED_DATASET_FILES = {
+    "tweetsumm": [
+        "tweetsumm/final_train_tweetsum.jsonl",
+        "tweetsumm/final_valid_tweetsum.jsonl",
+        "tweetsumm/final_test_tweetsum.jsonl",
+    ],
+}
+
 
 def _current_user_id(credentials: JwtAuthorizationCredentials) -> str:
     user_id = str(credentials.subject.get("user_id") or "")
@@ -87,7 +99,7 @@ async def list_supported_datasets(
 
 @router.post("/datasets/import")
 async def import_dataset(
-    dataset: str = Query(..., description="supportops_csv, bitext, tweetsumm 或 msdialog"),
+    dataset: str = Query(..., description="supportops_csv, tweetsumm 或 msdialog"),
     file: UploadFile = File(...),
     credentials: JwtAuthorizationCredentials = Security(access_security),
     db: Session = Depends(get_db),
@@ -111,6 +123,49 @@ async def import_dataset(
     if result["status"] == "failed":
         raise HTTPException(status_code=400, detail=result)
     return result
+
+
+@router.post("/datasets/import_bundled")
+async def import_bundled_dataset(
+    dataset: str = Query(..., description="内置数据集名，目前支持 tweetsumm"),
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+    db: Session = Depends(get_db),
+):
+    """导入随仓库内置的数据集文件，免手动选择文件。
+
+    重复导入依靠批次校验和与内容哈希去重，天然幂等。
+    """
+    user_id = _current_user_id(credentials)
+    relative_files = BUNDLED_DATASET_FILES.get(dataset.strip().lower())
+    if not relative_files:
+        raise HTTPException(status_code=404, detail="该数据集没有内置数据文件")
+
+    results = []
+    inserted_total = 0
+    with use_api_key_config(get_active_api_key_config(db, user_id)):
+        for relative_path in relative_files:
+            path = os.path.join(BUNDLED_DATASET_DIR, relative_path)
+            file_name = os.path.basename(relative_path)
+            if not os.path.exists(path):
+                results.append({"file": file_name, "status": "missing", "message": "内置数据文件缺失", "inserted": 0})
+                continue
+            with open(path, "rb") as handle:
+                content = handle.read()
+            result = ingest_dataset_content(db, user_id, dataset, file_name, content)
+            inserted = int(result.get("inserted") or 0)
+            inserted_total += inserted
+            results.append({
+                "file": file_name,
+                "status": result.get("status"),
+                "message": result.get("message"),
+                "inserted": inserted,
+            })
+    return {
+        "dataset": dataset,
+        "inserted": inserted_total,
+        "results": results,
+        "message": f"{dataset} 内置导入完成：新增 {inserted_total} 条工单",
+    }
 
 
 @router.get("/dataset_imports", response_model=list[DatasetImportJobResponse])
