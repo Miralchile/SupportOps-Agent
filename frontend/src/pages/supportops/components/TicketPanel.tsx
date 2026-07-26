@@ -1,4 +1,4 @@
-import { InboxOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Alert, Button, List, Select, Space, Table, Tag, Upload } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -85,7 +85,7 @@ export default function TicketPanel(props: Props) {
               return false
             }}
           >
-            <Button icon={<UploadOutlined />} type="primary">
+            <Button icon={<DownloadOutlined />} type="primary">
               导入工单 CSV
             </Button>
           </Upload>
@@ -110,7 +110,7 @@ export default function TicketPanel(props: Props) {
               return false
             }}
           >
-            <Button icon={<UploadOutlined />}>导入外部数据集</Button>
+            <Button icon={<DownloadOutlined />}>导入外部数据集</Button>
           </Upload>
 
           <Upload
