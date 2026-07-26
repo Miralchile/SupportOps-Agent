@@ -1,9 +1,60 @@
-{"id":"refund_01","question":"我要退款，这笔订单不是我下的","category":"refund","intent":"refund_request","need_human":true}
-{"id":"payment_01","question":"支付失败但银行卡已经扣款","category":"payment","intent":"payment_failed","need_human":true}
-{"id":"account_01","question":"我的账号被盗而且无法登录","category":"account","intent":"account_security","need_human":true}
-{"id":"privacy_01","question":"请删除我的个人信息和手机号","category":"privacy","intent":"privacy_request","need_human":true}
-{"id":"complaint_01","question":"服务太差了，我要正式投诉","category":"complaint","intent":"complaint","need_human":true}
-{"id":"technical_01","question":"应用打开后一直报错并闪退","category":"technical","intent":"technical_issue","need_human":false}
-{"id":"delivery_01","question":"我的快递到哪里了，什么时候能收到","category":"delivery","intent":"delivery_status","need_human":false}
-{"id":"product_01","question":"这个产品的批量导入功能怎么用","category":"product","intent":"product_inquiry","need_human":false}
-{"id":"general_01","question":"你们的工作时间是什么时候","category":"general","intent":"general_inquiry","need_human":false}
+{"id": "refund_01", "question": "我要退款，这笔订单不是我下的", "category": "refund", "intent": "refund_request", "need_human": true, "tag": "keyword"}
+{"id": "refund_02", "question": "商品和描述完全不符，我要求把钱还给我", "category": "refund", "intent": "refund_request", "need_human": true, "tag": "paraphrase"}
+{"id": "refund_03", "question": "昨天申请的退款到现在还没到账", "category": "refund", "intent": "refund_status", "need_human": true, "tag": "keyword"}
+{"id": "refund_04", "question": "你们的退款政策是什么，是七天无理由吗", "category": "refund", "intent": "refund_policy_inquiry", "need_human": false, "tag": "trap"}
+{"id": "refund_05", "question": "I want my money back for order ORD888777", "category": "refund", "intent": "refund_request", "need_human": true, "tag": "paraphrase"}
+{"id": "refund_06", "question": "买错尺码了，想把这单退掉重新买", "category": "refund", "intent": "refund_request", "need_human": true, "tag": "paraphrase"}
+{"id": "refund_07", "question": "如果我现在取消订单，钱会原路退回吗", "category": "refund", "intent": "refund_policy_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "payment_01", "question": "支付失败但银行卡已经扣款", "category": "payment", "intent": "payment_failed", "need_human": true, "tag": "keyword"}
+{"id": "payment_02", "question": "下单的时候一直转圈，最后提示交易异常，卡里的钱少了", "category": "payment", "intent": "payment_failed", "need_human": true, "tag": "paraphrase"}
+{"id": "payment_03", "question": "钱已经出去了但是订单状态还是待支付", "category": "payment", "intent": "payment_failed", "need_human": true, "tag": "paraphrase"}
+{"id": "payment_04", "question": "同一笔订单被收了两次钱，请核实", "category": "payment", "intent": "duplicate_charge", "need_human": true, "tag": "paraphrase"}
+{"id": "payment_05", "question": "你们支持哪些付款方式，可以用花呗吗", "category": "payment", "intent": "payment_method_inquiry", "need_human": false, "tag": "trap"}
+{"id": "payment_06", "question": "My card was charged but the order still shows unpaid", "category": "payment", "intent": "payment_failed", "need_human": true, "tag": "keyword"}
+{"id": "billing_01", "question": "发票金额开错了，能作废重新开一张吗", "category": "billing", "intent": "invoice_issue", "need_human": false, "tag": "paraphrase"}
+{"id": "billing_02", "question": "这个月账单比平时多了几十块，我不认可这笔费用", "category": "billing", "intent": "billing_dispute", "need_human": true, "tag": "paraphrase"}
+{"id": "billing_03", "question": "可以开企业抬头的增值税发票吗", "category": "billing", "intent": "invoice_request", "need_human": false, "tag": "paraphrase"}
+{"id": "account_01", "question": "我的账号被盗而且无法登录", "category": "account", "intent": "account_security", "need_human": true, "tag": "keyword"}
+{"id": "account_02", "question": "收到一条异地登录提醒短信，不是我本人操作", "category": "account", "intent": "account_security", "need_human": true, "tag": "paraphrase"}
+{"id": "account_03", "question": "怎么修改绑定的手机号", "category": "account", "intent": "account_update", "need_human": false, "tag": "trap"}
+{"id": "account_04", "question": "忘记密码了，重置邮件一直收不到", "category": "account", "intent": "password_reset", "need_human": false, "tag": "keyword"}
+{"id": "account_05", "question": "有人在一台陌生设备上用我的账户下了单", "category": "account", "intent": "account_security", "need_human": true, "tag": "paraphrase"}
+{"id": "account_06", "question": "想把两个账号合并成一个，历史订单能保留吗", "category": "account", "intent": "account_update", "need_human": false, "tag": "keyword"}
+{"id": "account_07", "question": "登录时收不到验证码短信", "category": "account", "intent": "login_issue", "need_human": false, "tag": "keyword"}
+{"id": "privacy_01", "question": "请删除我的个人信息和手机号", "category": "privacy", "intent": "privacy_request", "need_human": true, "tag": "keyword"}
+{"id": "privacy_02", "question": "请问你们会把我的数据分享给第三方吗", "category": "privacy", "intent": "privacy_policy_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "privacy_03", "question": "我怀疑我的信息被泄露了，最近总接到推销电话", "category": "privacy", "intent": "privacy_request", "need_human": true, "tag": "keyword"}
+{"id": "privacy_04", "question": "Please export all the data you hold about me, this is a GDPR request", "category": "privacy", "intent": "privacy_request", "need_human": true, "tag": "paraphrase"}
+{"id": "privacy_05", "question": "注销账号之后你们还会保留我的购买记录吗", "category": "privacy", "intent": "privacy_request", "need_human": true, "tag": "paraphrase"}
+{"id": "complaint_01", "question": "服务太差了，我要正式投诉", "category": "complaint", "intent": "complaint", "need_human": true, "tag": "keyword"}
+{"id": "complaint_02", "question": "这是我最后一次在你们这买东西，太让人失望了", "category": "complaint", "intent": "complaint", "need_human": true, "tag": "paraphrase"}
+{"id": "complaint_03", "question": "你们客服说话很不客气，我要求道歉", "category": "complaint", "intent": "complaint", "need_human": true, "tag": "paraphrase"}
+{"id": "complaint_04", "question": "我不是要投诉，就是想问怎么改收货地址", "category": "delivery", "intent": "address_change", "need_human": false, "tag": "trap"}
+{"id": "complaint_05", "question": "你们这个垃圾软件又崩溃了，气死我了", "category": "technical", "intent": "technical_issue", "need_human": true, "tag": "keyword"}
+{"id": "complaint_06", "question": "如果这次再解决不了，我就去消费者协会投诉你们", "category": "complaint", "intent": "complaint", "need_human": true, "tag": "keyword"}
+{"id": "legal_01", "question": "我已经咨询了律师，准备起诉你们公司", "category": "complaint", "intent": "legal_threat", "need_human": true, "tag": "keyword"}
+{"id": "legal_02", "question": "你们这种做法算不算违反消费者权益保护法", "category": "complaint", "intent": "legal_question", "need_human": true, "tag": "paraphrase"}
+{"id": "technical_01", "question": "应用打开后一直报错并闪退", "category": "technical", "intent": "technical_issue", "need_human": false, "tag": "keyword"}
+{"id": "technical_02", "question": "升级到新版本之后我的照片全都看不见了", "category": "technical", "intent": "technical_issue", "need_human": false, "tag": "paraphrase"}
+{"id": "technical_03", "question": "网页加载特别慢，经常转半天才出来", "category": "technical", "intent": "performance_issue", "need_human": false, "tag": "paraphrase"}
+{"id": "technical_04", "question": "App keeps crashing every time I open the cart", "category": "technical", "intent": "technical_issue", "need_human": false, "tag": "keyword"}
+{"id": "technical_05", "question": "两台设备之间数据同步出错，内容不一致", "category": "technical", "intent": "technical_issue", "need_human": false, "tag": "paraphrase"}
+{"id": "technical_06", "question": "优惠券无法使用，提示已过期但明明还有三天", "category": "technical", "intent": "coupon_issue", "need_human": false, "tag": "keyword"}
+{"id": "delivery_01", "question": "我的快递到哪里了，什么时候能收到", "category": "delivery", "intent": "delivery_status", "need_human": false, "tag": "keyword"}
+{"id": "delivery_02", "question": "物流显示已签收但我根本没有收到包裹", "category": "delivery", "intent": "delivery_issue", "need_human": true, "tag": "keyword"}
+{"id": "delivery_03", "question": "订单 ORD202400 已经三天了还没发货", "category": "delivery", "intent": "delivery_status", "need_human": false, "tag": "keyword"}
+{"id": "delivery_04", "question": "还没发货的话能不能改一下收货地址", "category": "delivery", "intent": "address_change", "need_human": false, "tag": "keyword"}
+{"id": "delivery_05", "question": "Where is my package? The tracking has not updated for a week", "category": "delivery", "intent": "delivery_status", "need_human": false, "tag": "paraphrase"}
+{"id": "delivery_06", "question": "快递员把东西放在门口结果丢了，这个损失谁来负责", "category": "delivery", "intent": "delivery_issue", "need_human": true, "tag": "keyword"}
+{"id": "delivery_07", "question": "我周六才在家，可以指定配送时间吗", "category": "delivery", "intent": "delivery_preference", "need_human": false, "tag": "paraphrase"}
+{"id": "product_01", "question": "这个产品的批量导入功能怎么用", "category": "product", "intent": "product_inquiry", "need_human": false, "tag": "keyword"}
+{"id": "product_02", "question": "有没有支持 Windows 的版本", "category": "product", "intent": "product_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "product_03", "question": "会员和普通用户具体差在哪里", "category": "product", "intent": "product_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "product_04", "question": "说明书第三步看不懂，具体应该怎么操作", "category": "product", "intent": "usage_help", "need_human": false, "tag": "keyword"}
+{"id": "product_05", "question": "Do you have an API for bulk data export?", "category": "product", "intent": "product_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "product_06", "question": "这个功能什么时候能上安卓版", "category": "product", "intent": "feature_request", "need_human": false, "tag": "paraphrase"}
+{"id": "general_01", "question": "你们的工作时间是什么时候", "category": "general", "intent": "general_inquiry", "need_human": false, "tag": "keyword"}
+{"id": "general_02", "question": "别跟我绕了，给我转人工客服", "category": "general", "intent": "human_agent_request", "need_human": true, "tag": "keyword"}
+{"id": "general_03", "question": "你们公司总部在哪个城市", "category": "general", "intent": "general_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "general_04", "question": "有没有学生优惠", "category": "general", "intent": "discount_inquiry", "need_human": false, "tag": "paraphrase"}
+{"id": "general_05", "question": "请问现在有人工在线吗", "category": "general", "intent": "general_inquiry", "need_human": false, "tag": "paraphrase"}

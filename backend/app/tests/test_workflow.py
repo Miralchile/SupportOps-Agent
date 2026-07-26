@@ -31,6 +31,9 @@ class SupportOpsWorkflowTest(unittest.TestCase):
         self.trace_patch = mock.patch.object(workflow, "_record_trace", lambda *_: None)
         self.trace_patch.start()
         self.common = [
+            mock.patch.object(workflow, "make_plan", lambda *_: {
+                "routes": ["rag_search", "similar_ticket_search"], "tools": [], "reason": "test"
+            }),
             mock.patch.object(workflow, "classify_intent", lambda *_: {
                 "category": "product", "intent": "product_inquiry", "confidence": 0.9, "reason": "test"
             }),
@@ -102,6 +105,28 @@ class SupportOpsWorkflowTest(unittest.TestCase):
         final = graph.get_state(config).values["final_answer"]
         self.assertEqual(final["retry_count"], 1)
         self.assertEqual(len(calls), 2)
+
+    def test_planned_tools_execute_and_unplanned_routes_skip(self):
+        graph, config, context = self.build("tools")
+        with mock.patch.object(workflow, "make_plan", return_value={
+            "routes": ["rag_search"],
+            "tools": [{"name": "query_logistics", "args": {"order_id": "ORD123456"}}],
+            "reason": "tool test",
+        }):
+            list(graph.stream(
+                workflow.new_turn_state("u1", "s4", "订单 ORD123456 物流到哪了"),
+                config,
+                context=context,
+                stream_mode="updates",
+            ))
+        final = graph.get_state(config).values["final_answer"]
+        self.assertEqual(final["tool_results"][0]["tool"], "query_logistics")
+        self.assertEqual(final["tool_results"][0]["status"], "ok")
+        self.assertEqual(final["plan"]["routes"], ["rag_search"])
+        traces = {item["tool_name"]: item for item in final["agent_trace"]}
+        self.assertIn("business_tools", traces)
+        self.assertEqual(traces["similar_ticket_search"]["status"], "skipped")
+        self.assertEqual(final["similar_tickets"], [])
 
     def test_high_risk_interrupt_can_be_edited_and_resumed(self):
         graph, config, context = self.build("human")

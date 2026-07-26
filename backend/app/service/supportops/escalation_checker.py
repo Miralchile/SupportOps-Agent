@@ -3,6 +3,17 @@ from typing import Any, Dict, List
 from service.supportops.prompts import ESCALATION_CHECK_PROMPT
 from service.supportops.tools import call_json_llm, compact, match_risk_rules
 
+# Labels (from classification) that always force a human hand-off.
+RISKY_LABELS = {
+    "complaint",
+    "refund",
+    "payment_failed",
+    "privacy",
+    "account_security",
+    "legal_threat",
+    "human_agent_request",
+}
+
 
 def check_escalation(
     question: str,
@@ -10,13 +21,14 @@ def check_escalation(
     sources: List[Dict[str, Any]],
     similar_tickets: List[Dict[str, Any]],
     messages: List[Dict[str, Any]] | None = None,
+    tool_results: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     matched_rules = match_risk_rules(question)
     classification_risk = []
     category = classification.get("category", "")
     intent = classification.get("intent", "")
     for label in (category, intent):
-        if label in {"complaint", "refund", "payment_failed", "privacy", "account_security"}:
+        if label in RISKY_LABELS:
             classification_risk.append(label)
 
     hard_rules = sorted(set(matched_rules + classification_risk))
@@ -33,6 +45,7 @@ def check_escalation(
         classification=compact(classification),
         sources=compact(sources),
         similar_tickets=compact(similar_tickets),
+        tool_results=compact(tool_results or []),
     )
     result = call_json_llm(prompt, fallback)
 

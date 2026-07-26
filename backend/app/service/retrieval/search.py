@@ -33,7 +33,8 @@ def hybrid_search(
 
     recall_size = max(top_k * 3, 16)
     keyword_hits = _keyword_search(index_name, question, recall_size)
-    vector_hits = _vector_search(index_name, question, recall_size)
+    # vector_weight <= 0 means keyword-only: skip the embedding round-trip.
+    vector_hits = _vector_search(index_name, question, recall_size) if vector_weight > 0 else []
 
     if not keyword_hits and not vector_hits:
         return []

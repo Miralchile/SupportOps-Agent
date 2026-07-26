@@ -173,6 +173,7 @@ RISK_RULES = {
     "account_security": ["盗号", "账号安全", "密码泄露", "无法登录", "account hacked", "stolen"],
     "legal": ["律师", "起诉", "法律", "赔偿", "legal", "lawsuit", "sue"],
     "strong_negative": ["太差", "垃圾", "再也不用", "愤怒", "气死", "terrible", "furious"],
+    "human_request": ["转人工", "人工客服", "真人客服", "找人工", "human agent", "real person", "speak to a human"],
 }
 
 
@@ -196,4 +197,4 @@ def extract_known_labels(similar_tickets: List[Dict[str, Any]]) -> List[Dict[str
             continue
         labels.append({"category": category, "intent": intent})
         seen.add(key)
-    return labels[:10]
+    return labels[:40]

@@ -5,6 +5,17 @@ from typing import Any, Dict, List
 from pydantic import BaseModel, Field
 
 
+class PlannedTool(BaseModel):
+    name: str
+    args: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PlanResult(BaseModel):
+    routes: List[str] = Field(default_factory=lambda: ["rag_search", "similar_ticket_search"])
+    tools: List[PlannedTool] = Field(default_factory=list)
+    reason: str = ""
+
+
 class IntentClassification(BaseModel):
     category: str = "general"
     intent: str = "general_inquiry"

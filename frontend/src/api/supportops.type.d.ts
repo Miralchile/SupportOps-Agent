@@ -112,6 +112,19 @@ declare namespace API {
     score: number
   }
 
+  interface SupportToolResult {
+    tool: string
+    args: Record<string, unknown>
+    status: 'ok' | 'not_found' | 'missing_args' | 'error' | string
+    [key: string]: unknown
+  }
+
+  interface SupportPlan {
+    routes?: string[]
+    tools?: { name: string; args: Record<string, unknown> }[]
+    reason?: string
+  }
+
   interface SupportFinalAnswer {
     user_question: string
     category: string
@@ -121,6 +134,8 @@ declare namespace API {
     reply: string
     similar_tickets: SupportSimilarTicket[]
     sources: SupportSource[]
+    tool_results?: SupportToolResult[]
+    plan?: SupportPlan
     agent_trace: SupportTrace[]
     next_action: string
     summary?: string

@@ -1,0 +1,14 @@
+{
+  "dataset": "/datasets/external/tweetsumm/final_test_tweetsum.jsonl",
+  "corpus_size": 100,
+  "queries": 100,
+  "top_k": 5,
+  "task": "known-item question->answer retrieval (TweetSumm)",
+  "modes": {
+    "keyword": {
+      "recall_at_1": 0.19,
+      "mrr": 0.2183,
+      "recall_at_5": 0.26
+    }
+  }
+}

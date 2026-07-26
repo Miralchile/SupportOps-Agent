@@ -4,6 +4,7 @@ The LangGraph graph itself lives in ``service.supportops.workflow``; this
 module wires it to FastAPI (SSE), the trace table and the chat history.
 """
 
+import os
 import uuid
 from typing import Any, Callable, Dict, Iterable, List
 
@@ -157,6 +158,7 @@ def run_support_agent(db: Session, user_id: str, session_id: str, question: str,
     runtime = SupportOpsRuntimeContext(
         db_factory=_session_factory(db),
         api_config=api_config,
+        max_retries=_max_retries(),
     )
     state = new_turn_state(user_id, session_id, question, history)
     yield from _stream_graph(graph, state, config, runtime)
@@ -180,8 +182,19 @@ def resume_support_agent(
         yield "event: end\ndata: [DONE]\n\n"
         return
 
-    runtime = SupportOpsRuntimeContext(db_factory=_session_factory(db), api_config=api_config)
+    runtime = SupportOpsRuntimeContext(
+        db_factory=_session_factory(db),
+        api_config=api_config,
+        max_retries=_max_retries(),
+    )
     yield from _stream_graph(graph, Command(resume=decision), config, runtime)
+
+
+def _max_retries() -> int:
+    try:
+        return max(0, min(3, int(os.getenv("SUPPORTOPS_MAX_RETRIES", "1"))))
+    except ValueError:
+        return 1
 
 
 def get_pending_review(user_id: str, session_id: str) -> Dict[str, Any] | None:
