@@ -1,5 +1,5 @@
 import * as api from '@/api'
-import { CheckCircleOutlined, DeleteOutlined, EditOutlined, ExperimentOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, DeleteOutlined, EditOutlined, ExperimentOutlined, KeyOutlined, PauseCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { Button, Form, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip, message } from 'antd'
 import { useEffect, useState } from 'react'
 
@@ -118,9 +118,14 @@ export default function ApiKeyPanel() {
     }
   }
 
-  async function handleActivate(record: API.SupportApiKey) {
-    await api.supportops.activateApiKey(record.id)
-    message.success('已设为启用')
+  async function handleToggleActive(record: API.SupportApiKey) {
+    if (record.is_active) {
+      await api.supportops.updateApiKey(record.id, { is_active: false })
+      message.success('已停用，Agent 将退回无 LLM 的规则模式')
+    } else {
+      await api.supportops.activateApiKey(record.id)
+      message.success('已设为启用')
+    }
     loadKeys()
   }
 
@@ -166,7 +171,9 @@ export default function ApiKeyPanel() {
       key: 'models',
       ellipsis: true,
       render: (_: unknown, record: API.SupportApiKey) => (
-        <span className="supportops-table-sub">{record.model} · {record.embedding_model}</span>
+        <span className="supportops-table-sub" title={`对话模型 ${record.model} · 向量模型 ${record.embedding_model}`}>
+          {record.model} · {record.embedding_model}
+        </span>
       ),
     },
     {
@@ -180,7 +187,6 @@ export default function ApiKeyPanel() {
       title: '操作',
       key: 'actions',
       width: 160,
-      align: 'right' as const,
       render: (_: unknown, record: API.SupportApiKey) => (
         <Space size={4}>
           <Tooltip title="测试">
@@ -202,14 +208,13 @@ export default function ApiKeyPanel() {
               aria-label={`编辑 ${record.name}`}
             />
           </Tooltip>
-          <Tooltip title="设为启用">
+          <Tooltip title={record.is_active ? '停用' : '设为启用'}>
             <Button
               size="small"
               type="text"
-              icon={<CheckCircleOutlined />}
-              disabled={record.is_active}
-              onClick={() => handleActivate(record)}
-              aria-label={`启用 ${record.name}`}
+              icon={record.is_active ? <PauseCircleOutlined /> : <CheckCircleOutlined />}
+              onClick={() => handleToggleActive(record)}
+              aria-label={record.is_active ? `停用 ${record.name}` : `启用 ${record.name}`}
             />
           </Tooltip>
           <Popconfirm title="删除这个 API Key？" onConfirm={() => handleDelete(record)}>
