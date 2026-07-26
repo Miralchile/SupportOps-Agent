@@ -42,7 +42,9 @@ export default function AgentTrace(props: { traces: API.SupportTrace[] }) {
                       )}
                       {String(item.step_order).padStart(2, '0')} · {item.tool_name}
                     </span>
-                    <Tag color={item.status === 'success' ? 'green' : 'red'}>{item.status}</Tag>
+                    <Tag color={item.status === 'success' ? 'green' : item.status === 'failed' ? 'red' : 'gold'}>
+                      {item.status}
+                    </Tag>
                     <span className="supportops-trace-item__latency">
                       {item.latency_ms}ms
                     </span>

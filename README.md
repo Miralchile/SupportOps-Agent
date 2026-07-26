@@ -1,16 +1,30 @@
 # SupportOps Agent
 
-SupportOps Agent 是一个本地可部署的智能客服工单分类、检索与自动处理系统。当前仓库是独立项目，复用了原工程中必要的认证、文档解析、Elasticsearch 检索和 SSE 能力，并删除了旧聊天、旧知识库页面、旧语音接口和上一个项目的业务入口。
+SupportOps Agent 是一个本地可部署的智能客服工单分类、检索与自动处理系统。代码遵循最小化原则：检索与文档解析是自研的轻量模块（`backend/app/service/retrieval/`，jieba 分词 + pdfplumber/python-docx 解析 + Elasticsearch 混合检索），不携带任何本地模型权重，依赖清单只保留实际用到的包。
 
 ## 技术栈
 
-- Backend: FastAPI, SQLAlchemy, Alembic, JWT, SSE
+- Backend: FastAPI, SQLAlchemy, JWT, SSE
 - Frontend: React, Vite, TypeScript, Ant Design
-- Storage: PostgreSQL, Elasticsearch, Redis
+- Storage: PostgreSQL, Elasticsearch
 - Agent Runtime: LangGraph 1.x, PostgreSQL Checkpoint, Human-in-the-loop
 - AI: DashScope / 阿里云百炼 OpenAI-compatible API
-- Retrieval: Elasticsearch hybrid/vector search
+- Retrieval: Elasticsearch BM25 + kNN 向量混合检索（加权融合，无 Embedding 时自动降级为纯关键词检索）
 - Deploy: Docker Compose
+
+## 目录结构
+
+```
+backend/app/
+  app_main.py            # FastAPI 入口；启动时自动建表
+  router/                # /login /register 与 /supportops/* 路由
+  service/supportops/    # LangGraph 状态图、节点实现、数据接入、评测、API Key
+  service/retrieval/     # 轻量检索层：解析 / 分词 / Embedding / ES / 混合检索
+  models/  schemas/      # SQLAlchemy 模型与 Pydantic 响应模型
+  tests/  evals/  scripts/
+frontend/src/            # React 工作台（SSE 流式轨迹 + 人工审核 UI）
+data/external/tweetsumm/ # TweetSumm 数据集与许可证
+```
 
 ## Agent 流程
 
@@ -62,7 +76,29 @@ flowchart TD
 - `intent`: 用户意图
 - `response`: 标准客服回复
 
-可直接上传项目根目录的 `sample_tickets.csv`。FAQ / 产品说明支持 PDF、DOCX、TXT、MD。
+可直接上传项目根目录的 `sample_tickets.csv`。FAQ / 产品说明支持 PDF、DOCX、TXT、MD（仅读取文字层，扫描版 PDF 需先自行 OCR）。
+
+### 多源数据集接入
+
+当前版本增加了带来源治理的数据集导入流水线，而不是把外部文件直接当作可信生产工单：
+
+- `TweetSumm`：来自真实 Twitter 客服对话的人工摘要，标记为 `real_derived`；仓库已保存官方 879/110/110 train/validation/test 数据和许可证。
+- `MSDialog`：真实匿名技术支持对话，标记为 `real_anonymized`；已实现 JSON 适配器，但官方要求研究者申请访问，项目不会绕过授权分发数据。
+- `Bitext`：混合合成客服数据，强制标记为 `synthetic`。
+- 标准 CSV：用户自有数据，标记为 `user_provided`。
+
+导入时会执行 HTML 清理、常见邮箱/电话/银行卡/IP 脱敏、内容哈希与幂等去重、会话级数据切分、质量打分、批次审计，并分批写入 Elasticsearch。`dataset_import_jobs` 保存文件校验和、数据版本、来源真实性、接收/拒绝/去重/脱敏/索引数量和导入参数。
+
+为避免未经确认的外部 API 成本，外部大数据集默认只建立 Elasticsearch 关键词索引；CLI 显式增加 `--with-embeddings` 才生成向量：
+
+```bash
+docker exec supportops_api python scripts/import_support_dataset.py \
+  --dataset tweetsumm \
+  --file /datasets/external/tweetsumm/final_train_tweetsum.jsonl \
+  --user-id 3
+```
+
+数据来源、许可和真实性边界见 `data/external/tweetsumm/README.md`。
 
 ## 启动方式
 
@@ -88,9 +124,11 @@ SUPPORTOPS_CHECKPOINT_POOL_SIZE=8
 DASHSCOPE_EMBEDDING_MODEL=text-embedding-v3
 DATABASE_URL=postgresql://postgres:pg123456@supportops_pg:5432/gsk
 ES_HOST=http://supportops_es:9200
-REDIS_HOST=supportops_redis
+ELASTIC_PASSWORD=supportops_es_password
 JWT_SECRET_KEY=supportops_local_secret
 ```
+
+首次启动时应用会自动创建全部数据库表（`SQLAlchemy create_all`），无需手动执行迁移。
 
 当前版本只支持 DashScope / 阿里云百炼作为完整 AI 供应商。DeepSeek 可用于对话类接口，但不能完整覆盖本项目的 FAQ / 工单 embedding 检索链路，所以没有作为可替代提供商开放。
 
@@ -107,6 +145,9 @@ JWT_SECRET_KEY=supportops_local_secret
 - `POST /login`: 登录
 - `POST /register`: 注册
 - `POST /supportops/upload_tickets`: 上传历史工单 CSV
+- `GET /supportops/datasets`: 查询支持的数据集及真实性类型
+- `POST /supportops/datasets/import?dataset=tweetsumm`: 导入标准 CSV、Bitext、TweetSumm 或经授权的 MSDialog
+- `GET /supportops/dataset_imports`: 查询数据导入批次与质量统计
 - `POST /supportops/upload_docs`: 上传 FAQ / 产品说明文档
 - `POST /supportops/chat?session_id=xxx`: SSE 流式客服 Agent 问答
 - `POST /supportops/chat/resume?session_id=xxx`: 提交人工审核决定并恢复工作流
@@ -125,7 +166,7 @@ JWT_SECRET_KEY=supportops_local_secret
 
 ## 简历写法
 
-- 基于 FastAPI、React、PostgreSQL、Elasticsearch、Redis 和 JWT 搭建本地可部署的客服工单 Agent 系统，支持工单 CSV 清洗入库、FAQ 文档 RAG 检索、相似历史工单召回和 SSE 实时执行轨迹展示。
+- 基于 FastAPI、React、PostgreSQL、Elasticsearch 和 JWT 搭建本地可部署的客服工单 Agent 系统，支持工单 CSV 清洗入库、FAQ 文档 RAG 检索、相似历史工单召回和 SSE 实时执行轨迹展示；检索层为自研轻量模块（jieba 分词 + BM25/kNN 加权融合，Embedding 缺失时自动降级）。
 - 基于 LangGraph 1.x 将意图识别、并行混合检索、风险升级、回复生成与质量反思建模为可恢复状态图，并将节点输入、输出、耗时和状态持久化到 `agent_traces`。
 - 通过 PostgreSQL Checkpoint 实现会话级多轮状态、失败恢复与 Human-in-the-loop；高风险工单可暂停并由人工批准、修改或拒绝后恢复执行。
 - 建立客服 Agent 离线评测工具，覆盖意图分类 Macro-F1、风险升级 Precision/Recall/F1/漏判率以及检索 Recall@K/MRR。

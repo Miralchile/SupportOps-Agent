@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional
+"""Validation models for LangGraph node outputs."""
+
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -8,22 +10,6 @@ class IntentClassification(BaseModel):
     intent: str = "general_inquiry"
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     reason: str = ""
-
-
-class SearchSource(BaseModel):
-    document_id: str
-    document_name: str
-    content: str
-    score: float = 0.0
-
-
-class SimilarTicket(BaseModel):
-    id: int
-    instruction: str
-    category: str
-    intent: str
-    response: str
-    score: float = 0.0
 
 
 class EscalationResult(BaseModel):
@@ -47,27 +33,3 @@ class ReflectionResult(BaseModel):
     need_follow_up: bool = False
     must_human: bool = False
     reason: str = ""
-
-
-class AgentTraceStep(BaseModel):
-    step_order: int
-    tool_name: str
-    tool_input: Dict[str, Any]
-    tool_output: Dict[str, Any]
-    latency_ms: int
-    status: str
-
-
-class SupportFinalAnswer(BaseModel):
-    user_question: str
-    category: str
-    intent: str
-    risk_level: str
-    need_human: bool
-    reply: str
-    similar_tickets: List[Dict[str, Any]]
-    sources: List[Dict[str, Any]]
-    agent_trace: List[Dict[str, Any]]
-    next_action: str
-    summary: Optional[str] = None
-    reflection: Optional[Dict[str, Any]] = None

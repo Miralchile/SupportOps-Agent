@@ -1,4 +1,4 @@
-from utils.database import get_db, SessionLocal
+from utils.database import get_db
 from models.user import User
 from utils.password import verify_password
 from sqlalchemy.exc import SQLAlchemyError
@@ -8,6 +8,8 @@ import secrets
 from datetime import timedelta
 import os
 import logging
+
+logger = logging.getLogger("supportops.auth")
 
 # JWT配置
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'default_secret_key') + 'happy'
@@ -80,44 +82,27 @@ def register_user(username: str, password: str):
         AuthError: 如果用户名已存在或注册失败
     """
     from utils.password import hash_password
-    
-    # 配置日志
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    
-    logger.info(f"开始注册用户: {username}")
+
     db = next(get_db())
     try:
-        # 检查用户名是否已存在
-        logger.info("检查用户名是否已存在...")
         existing_user = db.query(User).filter(User.username == username).first()
         if existing_user:
-            logger.warning(f"用户名 {username} 已存在")
             raise AuthError("用户名已存在")
-        
-        # 对密码进行哈希处理
-        logger.info("开始密码哈希处理...")
-        password_hash = hash_password(password)
-        logger.info("密码哈希处理完成")
-        
-        # 创建新用户
-        logger.info("创建新用户记录...")
-        new_user = User(username=username, password_hash=password_hash)
+
+        new_user = User(username=username, password_hash=hash_password(password))
         db.add(new_user)
-        
-        # 提交事务
-        logger.info("提交数据库事务...")
         db.commit()
-        logger.info(f"用户 {username} 注册成功")
-        
+        logger.info("用户 %s 注册成功", username)
+    except AuthError:
+        db.rollback()
+        raise
     except SQLAlchemyError as e:
-        logger.error(f"数据库操作失败: {str(e)}")
+        logger.error("注册数据库操作失败: %s", e)
         db.rollback()
-        raise AuthError(f"注册失败: {str(e)}")
+        raise AuthError("注册失败，请稍后重试")
     except Exception as e:
-        logger.error(f"注册过程中发生未知错误: {str(e)}")
+        logger.error("注册过程中发生未知错误: %s", e)
         db.rollback()
-        raise AuthError(f"注册失败: {str(e)}")
+        raise AuthError("注册失败，请稍后重试")
     finally:
         db.close()
-        logger.info("数据库连接已关闭")

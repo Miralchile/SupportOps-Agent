@@ -1,20 +1,29 @@
-import storage from './storage'
-import proxyWithPersist, { PersistStrategy } from './valtio-persist'
+import { proxy, subscribe } from 'valtio'
 
-const state = proxyWithPersist({
-  name: 'user',
-  version: 0,
-  getStorage: () => storage,
-  persistStrategies: {
-    token: PersistStrategy.SingleFile,
-    username: PersistStrategy.SingleFile,
-  },
-  migrations: {},
+const STORAGE_KEY = 'supportops.user'
 
-  initialState: {
-    token: null as string | null,
-    username: null as string | null,
-  },
+/** Minimal localStorage persistence for a valtio proxy state. */
+function proxyWithStorage<T extends object>(key: string, initialState: T): T {
+  let saved: Partial<T> = {}
+  try {
+    saved = JSON.parse(window.localStorage.getItem(key) || '{}')
+  } catch {
+    saved = {}
+  }
+  const state = proxy({ ...initialState, ...saved })
+  subscribe(state, () => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state))
+    } catch {
+      // storage may be unavailable (private mode / quota); state stays in memory
+    }
+  })
+  return state
+}
+
+const state = proxyWithStorage(STORAGE_KEY, {
+  token: null as string | null,
+  username: null as string | null,
 })
 
 const actions = {

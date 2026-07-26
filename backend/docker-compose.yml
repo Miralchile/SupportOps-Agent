@@ -8,29 +8,24 @@ services:
     hostname: supportops_api
     container_name: supportops_api
     environment:
-      - HF_ENDPOINT=https://hf-mirror.com
-      - DATABASE_URL=postgresql://postgres:pg123456@supportops_pg:5432/gsk
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-pg123456}@supportops_pg:5432/${POSTGRES_DB:-gsk}
       - ES_HOST=http://supportops_es:9200
-      - ROOT_PATH=http://localhost:8000
-      - REDIS_HOST=supportops_redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-supportops_local_secret}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app
-      - supportops_nltk_data:/usr/local/nltk_data
+      - ../data:/datasets:ro
     command: ["uvicorn", "app_main:app", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
     depends_on:
-      - supportops_pg
-      - supportops_es
-      - supportops_redis
+      supportops_pg:
+        condition: service_healthy
+      supportops_es:
+        condition: service_healthy
     networks:
       - supportops_network
 
@@ -56,7 +51,6 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
     volumes:
       - supportops_esdata:/usr/share/elasticsearch/data
-    env_file: .env
     environment:
       - node.name=supportops_es
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
@@ -68,15 +62,15 @@ services:
       - cluster.routing.allocation.disk.watermark.low=5gb
       - cluster.routing.allocation.disk.watermark.high=3gb
       - cluster.routing.allocation.disk.watermark.flood_stage=2gb
-      - TZ=${TIMEZONE}
+      - TZ=${TIMEZONE:-Asia/Shanghai}
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    mem_limit: ${MEM_LIMIT}
+    mem_limit: ${ES_MEM_LIMIT:-2g}
     ulimits:
       memlock:
         soft: -1
         hard: -1
     healthcheck:
-      test: ["CMD-SHELL", "curl http://localhost:9200"]
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 120
@@ -88,21 +82,16 @@ services:
     container_name: supportops_pg
     image: postgres:15-alpine
     environment:
-      - POSTGRES_PASSWORD=pg123456
       - POSTGRES_USER=postgres
-      - POSTGRES_DB=gsk
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pg123456}
+      - POSTGRES_DB=${POSTGRES_DB:-gsk}
     volumes:
       - supportops_pg_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    restart: unless-stopped
-    networks:
-      - supportops_network
-
-  supportops_redis:
-    container_name: supportops_redis
-    image: redis:7-alpine
-    volumes:
-      - supportops_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     restart: unless-stopped
     networks:
       - supportops_network
@@ -111,10 +100,6 @@ volumes:
   supportops_esdata:
     driver: local
   supportops_pg_data:
-    driver: local
-  supportops_redis_data:
-    driver: local
-  supportops_nltk_data:
     driver: local
 
 networks:

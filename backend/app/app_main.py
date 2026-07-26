@@ -1,27 +1,58 @@
+import logging
+import os
+import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from router import supportops_rt
-from router import user_rt
-import os
 
-# 从环境变量获取 root_path
-root_path = os.getenv("ROOT_PATH", "http://localhost:8000")
+from router import supportops_rt, user_rt
+from utils.database import init_db
 
-app = FastAPI(root_path=root_path)
+logger = logging.getLogger("supportops.app")
 
-# 添加 CORS 中间件
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Create missing tables on boot; retry briefly in case the database
+    # container is still starting.
+    last_error: Exception | None = None
+    for attempt in range(1, 6):
+        try:
+            init_db()
+            last_error = None
+            break
+        except Exception as exc:  # pragma: no cover - startup resilience
+            last_error = exc
+            logger.warning("Database init attempt %d/5 failed: %s", attempt, exc)
+            time.sleep(2)
+    if last_error is not None:
+        raise last_error
+    yield
+
+
+app = FastAPI(title="SupportOps Agent API", root_path=os.getenv("ROOT_PATH", ""), lifespan=lifespan)
+
+# Comma-separated origin allowlist; "*" (default) is convenient for local use.
+cors_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有源，生产环境中应该设置具体的源
-    allow_credentials=True,
-    allow_methods=["*"],  # 允许所有方法
-    allow_headers=["*"],  # 允许所有头
+    allow_origins=cors_origins,
+    allow_credentials=cors_origins != ["*"],  # credentials + wildcard is invalid per CORS spec
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(user_rt.router)
 app.include_router(supportops_rt.router)
 
-if __name__=='__main__':
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    

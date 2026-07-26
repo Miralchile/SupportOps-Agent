@@ -1,19 +1,19 @@
-import time
+"""SupportOps agent entrypoints: SSE streaming, resume, review lookup, traces.
+
+The LangGraph graph itself lives in ``service.supportops.workflow``; this
+module wires it to FastAPI (SSE), the trace table and the chat history.
+"""
+
 import uuid
-from contextlib import nullcontext
-from typing import Any, Callable, Dict, Iterable, List, Tuple
+from typing import Any, Callable, Dict, Iterable, List
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from models.agent_trace import AgentTrace
-from service.core.rag.nlp.search_v2 import Dealer
-from service.core.rag.utils.es_conn import ESConnection
-from service.supportops.api_key_context import use_api_key_config
-from service.supportops.escalation_checker import check_escalation
-from service.supportops.intent_classifier import classify_intent
-from service.supportops.response_generator import generate_response, reflect_response
-from service.supportops.similar_ticket_search import docs_index_name, search_similar_tickets
+from service.retrieval.es_client import get_es, index_exists
+from service.retrieval.search import hybrid_search
+from service.supportops.similar_ticket_search import docs_index_name
 from service.supportops.tools import chunk_text, compact, json_dumps, simple_similarity, sse_message
 
 
@@ -26,15 +26,14 @@ def normalize_session_id(session_id: str | None) -> str:
 
 def search_support_docs(user_id: str, question: str, top_k: int = 5) -> List[Dict[str, Any]]:
     index_name = docs_index_name(user_id)
+
     def fallback_keyword_search() -> List[Dict[str, Any]]:
+        """Client-side similarity over all chunks; last resort when the
+        Elasticsearch query path fails but the index itself is readable."""
         try:
-            es = ESConnection().es
-            if not es.indices.exists(index=index_name):
+            if not index_exists(index_name):
                 return []
-            response = es.search(
-                index=index_name,
-                body={"query": {"match_all": {}}, "size": 100},
-            )
+            response = get_es().search(index=index_name, query={"match_all": {}}, size=100)
             ranked = []
             for idx, hit in enumerate(response.get("hits", {}).get("hits", []), start=1):
                 source = hit.get("_source", {})
@@ -57,27 +56,16 @@ def search_support_docs(user_id: str, question: str, top_k: int = 5) -> List[Dic
             return []
 
     try:
-        dealer = Dealer(dataStore=ESConnection())
-        results = dealer.retrieval(
-            question=question,
-            embd_mdl=None,
-            tenant_ids=index_name,
-            kb_ids=None,
-            vector_similarity_weight=0.6,
-            page=1,
-            page_size=top_k,
-        )
-        sources = []
-        for idx, chunk in enumerate(results.get("chunks", []), start=1):
-            docnm = chunk.get("docnm_kwd") or chunk.get("docnm") or "supportops_doc"
-            sources.append(
-                {
-                    "document_id": chunk.get("doc_id") or chunk.get("chunk_id") or str(idx),
-                    "document_name": str(docnm).split("/")[-1],
-                    "content": chunk.get("content_with_weight") or "",
-                    "score": round(float(chunk.get("similarity") or chunk.get("vector_similarity") or 0), 4),
-                }
-            )
+        chunks = hybrid_search(index_name, question, top_k=top_k, vector_weight=0.6)
+        sources = [
+            {
+                "document_id": chunk.get("doc_id") or chunk.get("chunk_id") or str(idx),
+                "document_name": str(chunk.get("docnm_kwd") or "supportops_doc").split("/")[-1],
+                "content": chunk.get("content_with_weight") or "",
+                "score": float(chunk.get("similarity") or 0),
+            }
+            for idx, chunk in enumerate(chunks, start=1)
+        ]
         return sources or fallback_keyword_search()
     except Exception:
         return fallback_keyword_search()
@@ -105,38 +93,6 @@ def _record_trace(
         db.commit()
     except Exception:
         db.rollback()
-
-
-def _execute_step(
-    db: Session,
-    user_id: str,
-    session_id: str,
-    step_order: int,
-    tool_name: str,
-    tool_input: Dict[str, Any],
-    fn: Callable[[], Any],
-    api_config: Dict[str, Any] | None = None,
-) -> Tuple[Any, Dict[str, Any]]:
-    started = time.perf_counter()
-    status = "success"
-    try:
-        context = use_api_key_config(api_config) if api_config else nullcontext()
-        with context:
-            output = fn()
-    except Exception as exc:
-        status = "failed"
-        output = {"error": str(exc)}
-    latency_ms = int((time.perf_counter() - started) * 1000)
-    trace = {
-        "step_order": step_order,
-        "tool_name": tool_name,
-        "tool_input": tool_input,
-        "tool_output": output,
-        "latency_ms": latency_ms,
-        "status": status,
-    }
-    _record_trace(db, user_id, session_id, trace)
-    return output, trace
 
 
 def _write_final_to_history(

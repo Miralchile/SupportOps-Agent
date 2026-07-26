@@ -114,14 +114,6 @@ def compact(data: Any, limit: int = 1800) -> str:
     return text[:limit] + "...(truncated)"
 
 
-def to_public_dict(data: Any) -> Dict[str, Any]:
-    if hasattr(data, "dict"):
-        return data.dict()
-    if isinstance(data, dict):
-        return data
-    return safe_json_loads(data, {}) or {}
-
-
 def sse_message(payload: Dict[str, Any]) -> str:
     return f"event: message\ndata: {json_dumps(payload)}\n\n"
 
