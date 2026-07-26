@@ -171,8 +171,22 @@ def generate_response(
         "reply": reply,
         "summary": result.get("summary") or fallback["summary"],
         "next_action": next_action,
-        "citations": result.get("citations") if isinstance(result.get("citations"), list) else fallback["citations"],
+        "citations": _normalize_citations(result.get("citations"), fallback["citations"]),
     }
+
+
+def _normalize_citations(raw: Any, fallback: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """LLM 偶尔会把 citations 写成字符串数组；规范化为字典数组，
+    避免单个字段的类型偏差让整份回复被校验层打回兜底。"""
+    if not isinstance(raw, list):
+        return fallback
+    citations: List[Dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            citations.append(item)
+        elif item is not None:
+            citations.append({"type": "ref", "id": str(item)})
+    return citations
 
 
 def reflect_response(

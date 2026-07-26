@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Security, UploadFile, status
 from fastapi.responses import StreamingResponse
 from fastapi_jwt import JwtAuthorizationCredentials
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from models.agent_trace import AgentTrace
@@ -195,6 +195,36 @@ async def pending_human_review(
     user_id = _current_user_id(credentials)
     review = get_pending_review(user_id, normalize_session_id(session_id))
     return {"pending": bool(review), "review": review}
+
+
+@router.get("/messages/{session_id}")
+async def get_session_messages(
+    session_id: str,
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+    db: Session = Depends(get_db),
+):
+    """会话消息记录（用户侧客户窗口在人工审核完成后拉取最终答复）。"""
+    user_id = _current_user_id(credentials)
+    session_key = normalize_session_id(session_id)
+    rows = db.execute(
+        text(
+            """
+            SELECT m.user_question, m.model_answer, m.created_at
+            FROM messages m
+            JOIN sessions s ON s.session_id = m.session_id
+            WHERE m.session_id = :session_id AND s.user_id = :user_id
+            ORDER BY m.created_at ASC
+            """
+        ),
+        {"session_id": session_key, "user_id": user_id},
+    ).fetchall()
+    return {
+        "session_id": session_key,
+        "messages": [
+            {"user_question": row[0], "model_answer": row[1], "created_at": str(row[2])}
+            for row in rows
+        ],
+    }
 
 
 @router.get("/workflow/status")

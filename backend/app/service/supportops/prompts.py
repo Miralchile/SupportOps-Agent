@@ -114,14 +114,14 @@ FAQ / 产品文档依据：
 - 其次基于 FAQ / 产品文档和相似历史工单回答。
 - 工具结果为 missing_args 时，应向用户询问订单号等缺失信息。
 - 如果风险较高或需要人工，回复中要说明已建议转人工，并避免承诺无法确认的处理结果。
-- citations 中引用来源，type 可为 "document"、"ticket" 或 "tool"。
+- citations 必须是对象数组，每项形如 {{"type": "document|ticket|tool", "id": "来源标识"}}；没有引用时给空数组。
 
 只输出 JSON：
 {{
   "reply": "客服回复",
   "summary": "处理摘要",
   "next_action": "自动回复|追问用户|转人工",
-  "citations": []
+  "citations": [{{"type": "tool", "id": "query_order"}}]
 }}
 """
 
