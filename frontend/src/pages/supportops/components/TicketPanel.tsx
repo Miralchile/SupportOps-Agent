@@ -19,8 +19,23 @@ type Props = {
   onRefresh: () => void
 }
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  user_provided: '自有',
+  real_derived: '真实',
+  real_anonymized: '真实',
+  synthetic: '合成',
+  unknown: '未知',
+}
+
+const SPLIT_LABELS: Record<string, string> = {
+  train: '训练',
+  validation: '验证',
+  test: '测试',
+  unspecified: '未切分',
+}
+
 export default function TicketPanel(props: Props) {
-  const [datasetType, setDatasetType] = useState<'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'>('tweetsumm')
+  const [datasetType, setDatasetType] = useState<'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'>('supportops_csv')
   const columns: ColumnsType<API.SupportTicket> = [
     {
       title: '问题',
@@ -47,11 +62,12 @@ export default function TicketPanel(props: Props) {
       width: 176,
       ellipsis: true,
       render(value: API.SupportTicket['source_type'], row) {
-        const color = value === 'real_anonymized' ? 'green' : value === 'synthetic' ? 'purple' : 'blue'
+        const raw = value || row.source
+        const color = raw.startsWith('real') ? 'green' : raw === 'synthetic' ? 'purple' : raw === 'user_provided' ? 'blue' : undefined
         return (
           <>
-            <Tag style={{ marginRight: 4 }} color={color}>{value || row.source}</Tag>
-            <Tag style={{ margin: 0 }}>{row.dataset_split}</Tag>
+            <Tag style={{ marginRight: 4 }} color={color} title={raw}>{SOURCE_TYPE_LABELS[raw] || raw}</Tag>
+            <Tag style={{ margin: 0 }} title={row.dataset_split}>{SPLIT_LABELS[row.dataset_split] || row.dataset_split}</Tag>
           </>
         )
       },
@@ -96,10 +112,10 @@ export default function TicketPanel(props: Props) {
             style={{ width: 150 }}
             popupMatchSelectWidth={false}
             options={[
+              { value: 'supportops_csv', label: 'CSV · 自有', title: '来源：用户自有数据（user_provided）' },
               { value: 'tweetsumm', label: 'TweetSumm · 真实', title: '来源：真实 Twitter 客服对话的人工摘要（real_derived）' },
               { value: 'msdialog', label: 'MSDialog · 真实', title: '来源：真实匿名技术支持对话（real_anonymized，需官方授权获取）' },
               { value: 'bitext', label: 'Bitext · 合成', title: '来源：机器合成客服数据（synthetic）' },
-              { value: 'supportops_csv', label: 'CSV · 自有', title: '来源：用户自有数据（user_provided）' },
             ]}
           />
           <Upload
@@ -199,6 +215,15 @@ export default function TicketPanel(props: Props) {
         loading={props.loading}
         pagination={false}
         scroll={{ y: 300 }}
+        expandable={{
+          rowExpandable: (row) => Boolean(row.response),
+          expandedRowRender: (row) => (
+            <div className="supportops-ticket-answer">
+              <div className="supportops-ticket-answer__label">处理方式 / 回答</div>
+              {row.response}
+            </div>
+          ),
+        }}
       />
     </div>
   )

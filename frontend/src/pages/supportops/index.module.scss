@@ -390,6 +390,23 @@
   }
   // 操作列是按钮不是文本，不参与省略号截断
   .supportops-api-key-table .ant-table-tbody > tr > td:last-child { text-overflow: clip; }
+  // 展开行是长文本详情，恢复正常换行
+  .supportops-section .ant-table-wrapper .ant-table-tbody > tr.ant-table-expanded-row > td {
+    white-space: normal;
+    text-overflow: clip;
+  }
+  .supportops-ticket-answer {
+    white-space: pre-wrap;
+    color: #344054;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  .supportops-ticket-answer__label {
+    margin-bottom: 4px;
+    color: #667085;
+    font-size: 10px;
+    font-weight: 600;
+  }
   .supportops-section .ant-table-wrapper .ant-table-thead > tr > th { color: #475467; background: #f8fafc; font-size: 10px; font-weight: 700; }
 
   @media (max-width: 1120px) {
