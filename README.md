@@ -55,6 +55,24 @@ flowchart TD
 
 最终答案包含 `category`、`intent`、`risk_level`、`need_human`、自动回复、工具查询结果、执行计划、相似工单、引用依据、Agent 执行轨迹、重试次数、人工审核结果和下一步处理建议。
 
+## 界面预览
+
+工作台全景：状态卡、多轮对话与会话记录（右侧可见同一账号下自动回复 / 人工审核后回复 / 转人工三种处理结果）。
+
+![工作台](docs/screenshots/workbench.png)
+
+执行轨迹：planner 输出真实的路由与工具决策理由，business_tools 返回确定性查询结果，每个节点的输入输出、状态与耗时可审计。
+
+![执行轨迹](docs/screenshots/agent-trace.png)
+
+高风险 interrupt：投诉 + 退款请求触发人工审核，工作流暂停并展示升级理由（引用了业务工具结果与知识库案例），支持批准 / 修改后发送 / 拒绝并转人工。
+
+![人工审核](docs/screenshots/human-review.png)
+
+运营与配置：工单资产（含来源与数据切分治理字段）、外部数据集导入、API Key 管理与运营指标。
+
+![运营与配置](docs/screenshots/operations.png)
+
 ### 状态与可靠性
 
 - `session_id` 与 JWT 用户 ID 共同映射为 LangGraph `thread_id`，避免跨用户会话碰撞。
