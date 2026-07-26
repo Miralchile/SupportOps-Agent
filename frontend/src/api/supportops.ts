@@ -99,6 +99,13 @@ export function pendingReview(sessionId: string, options?: AxiosRequestConfig) {
   )
 }
 
+export function sessionMessages(sessionId: string, options?: AxiosRequestConfig) {
+  return request.get<API.SupportSessionMessages>(
+    `/supportops/messages/${sessionId}`,
+    options,
+  )
+}
+
 export function workflowStatus(options?: AxiosRequestConfig) {
   return request.get<{ framework: string; backend: string; durable: boolean }>(
     '/supportops/workflow/status',
@@ -108,13 +115,6 @@ export function workflowStatus(options?: AxiosRequestConfig) {
 
 export function tickets(options?: AxiosRequestConfig) {
   return request.get<API.SupportTicketsResponse>('/supportops/tickets', options)
-}
-
-export function traces(sessionId: string, options?: AxiosRequestConfig) {
-  return request.get<API.SupportTrace[]>(
-    `/supportops/traces/${sessionId}`,
-    options,
-  )
 }
 
 export function metrics(options?: AxiosRequestConfig) {

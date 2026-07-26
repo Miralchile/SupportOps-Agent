@@ -24,11 +24,11 @@ export default function MetricsPanel(props: { metrics?: API.SupportMetrics }) {
         <Statistic title="已入库工单" value={metrics?.ticket_total || 0} />
         <div>
           <div className="supportops-metrics__label">高风险比例</div>
-          <Progress percent={highRiskPercent} size="small" status="exception" />
+          <Progress percent={highRiskPercent} size="small" strokeColor="#d92d20" />
         </div>
         <div>
           <div className="supportops-metrics__label">转人工比例</div>
-          <Progress percent={humanPercent} size="small" />
+          <Progress percent={humanPercent} size="small" strokeColor="#3157d5" />
         </div>
       </div>
 

@@ -145,11 +145,11 @@ export default function ApiKeyPanel() {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      ellipsis: true,
       render: (value: string, record: API.SupportApiKey) => (
         <Space size={6}>
-          <KeyOutlined />
+          <KeyOutlined style={{ color: record.is_active ? '#12805c' : '#98a2b3' }} />
           <span>{value}</span>
-          {record.is_active ? <Tag color="green">启用</Tag> : null}
         </Space>
       ),
     },
@@ -157,21 +157,30 @@ export default function ApiKeyPanel() {
       title: 'Key',
       dataIndex: 'masked_api_key',
       key: 'masked_api_key',
-    },
-    {
-      title: '提供商',
-      dataIndex: 'provider',
-      key: 'provider',
-      render: () => <Tag>DashScope / 阿里云百炼</Tag>,
+      width: 170,
+      ellipsis: true,
+      render: (value: string) => <span className="supportops-table-sub">{value}</span>,
     },
     {
       title: '模型',
-      dataIndex: 'model',
-      key: 'model',
+      key: 'models',
+      ellipsis: true,
+      render: (_: unknown, record: API.SupportApiKey) => (
+        <span className="supportops-table-sub">{record.model} · {record.embedding_model}</span>
+      ),
+    },
+    {
+      title: '状态',
+      key: 'status',
+      width: 90,
+      render: (_: unknown, record: API.SupportApiKey) =>
+        record.is_active ? <Tag style={{ margin: 0 }} color="green">启用</Tag> : <Tag style={{ margin: 0 }}>停用</Tag>,
     },
     {
       title: '操作',
       key: 'actions',
+      width: 140,
+      align: 'right' as const,
       render: (_: unknown, record: API.SupportApiKey) => (
         <Space size={4}>
           <Tooltip title="测试">
@@ -239,7 +248,6 @@ export default function ApiKeyPanel() {
         columns={columns}
         dataSource={keys}
         pagination={false}
-        scroll={{ x: 560 }}
       />
 
       <Modal

@@ -12,13 +12,3 @@ export function useRoute() {
   }, [pathname, router])
   return route as IRouteObject | undefined
 }
-
-export function useQuery() {
-  const location = useLocation()
-  const query = useMemo(
-    () => new URLSearchParams(location.search),
-    [location.search],
-  )
-
-  return query
-}

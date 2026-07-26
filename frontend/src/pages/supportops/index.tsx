@@ -3,6 +3,7 @@ import {
   ApartmentOutlined,
   CheckCircleFilled,
   CloudServerOutlined,
+  CommentOutlined,
   DatabaseOutlined,
   LogoutOutlined,
   MessageOutlined,
@@ -59,10 +60,6 @@ const CONVERSATION_HISTORY_LIMIT = 50
 
 function conversationHistoryStorageKey(username?: string | null) {
   return `supportops.conversation_history.${username || 'anonymous'}`
-}
-
-function legacyQuestionHistoryStorageKey(username?: string | null) {
-  return `supportops.question_history.${username || 'anonymous'}`
 }
 
 function normalizeChatMessages(messages: any[]): ChatMessage[] {
@@ -148,9 +145,7 @@ function readConversationHistory(username?: string | null): ConversationHistoryI
   if (typeof window === 'undefined') return []
 
   try {
-    const value =
-      window.localStorage.getItem(conversationHistoryStorageKey(username)) ||
-      window.localStorage.getItem(legacyQuestionHistoryStorageKey(username))
+    const value = window.localStorage.getItem(conversationHistoryStorageKey(username))
     const parsed = JSON.parse(value || '[]')
     if (!Array.isArray(parsed)) return []
 
@@ -239,6 +234,18 @@ export default function SupportOpsPage() {
     if (history[0]) {
       restoreConversation(history[0])
     }
+  }, [user.username])
+
+  // 客户模拟窗口（/portal）与本页共享会话记录：
+  // 客户在另一个标签页提交工单时，storage 事件驱动本页实时刷新。
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key === conversationHistoryStorageKey(user.username)) {
+        setConversationHistory(readConversationHistory(user.username))
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [user.username])
 
   async function handleUploadTickets(file: File) {
@@ -735,6 +742,13 @@ export default function SupportOpsPage() {
                       </div>
                       <Space className="supportops-section__actions" wrap>
                         <Button
+                          icon={<CommentOutlined />}
+                          onClick={() => window.open('/portal', '_blank')}
+                          title="打开客户视角的工单提交窗口（新标签页）"
+                        >
+                          客户模拟窗口
+                        </Button>
+                        <Button
                           icon={<PlusOutlined />}
                           onClick={startNewConversation}
                           disabled={loading}
@@ -951,10 +965,10 @@ export default function SupportOpsPage() {
                     onUploadDocs={handleUploadDocs}
                     onRefresh={refreshData}
                   />
+                  <ApiKeyPanel />
                 </div>
 
                 <div className="supportops-page__side">
-                  <ApiKeyPanel />
                   <MetricsPanel metrics={metrics} />
                 </div>
               </div>

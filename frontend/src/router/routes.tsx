@@ -1,6 +1,6 @@
-import { BaseLayout } from '@/layout/base'
 import NotFound from '@/pages/404'
 import Login from '@/pages/login'
+import CustomerPortal from '@/pages/portal'
 import SupportOps from '@/pages/supportops'
 import {
   Navigate,
@@ -28,16 +28,18 @@ export const routes: IRouteObject[] = [
     path: '/supportops',
     Component: SupportOps,
   },
+  {
+    path: '/portal',
+    Component: CustomerPortal,
+  },
 ]
 
 function Layout() {
   const location = useLocation()
   return (
-    <BaseLayout>
-      <RouterGuard>
-        <Outlet key={location.pathname} />
-      </RouterGuard>
-    </BaseLayout>
+    <RouterGuard>
+      <Outlet key={location.pathname} />
+    </RouterGuard>
   )
 }
 

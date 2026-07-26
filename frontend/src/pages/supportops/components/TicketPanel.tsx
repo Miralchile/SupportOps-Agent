@@ -28,38 +28,40 @@ export default function TicketPanel(props: Props) {
       ellipsis: true,
     },
     {
-      title: 'Category',
+      title: '分类 / 意图',
       dataIndex: 'category',
-      width: 130,
-    },
-    {
-      title: 'Intent',
-      dataIndex: 'intent',
-      width: 150,
-    },
-    {
-      title: '来源',
-      dataIndex: 'source_type',
-      width: 150,
-      render(value: API.SupportTicket['source_type'], row) {
-        const color = value === 'real_anonymized' ? 'green' : value === 'synthetic' ? 'purple' : 'blue'
-        return <Tag color={color}>{value || row.source}</Tag>
+      width: 200,
+      ellipsis: true,
+      render(_: string, row) {
+        return (
+          <>
+            <Tag style={{ marginRight: 6 }}>{row.category}</Tag>
+            <span className="supportops-table-sub" title={row.intent}>{row.intent}</span>
+          </>
+        )
       },
     },
     {
-      title: '数据切分',
-      dataIndex: 'dataset_split',
-      width: 100,
-      render(value: string) {
-        return <Tag>{value}</Tag>
+      title: '来源 · 切分',
+      dataIndex: 'source_type',
+      width: 176,
+      ellipsis: true,
+      render(value: API.SupportTicket['source_type'], row) {
+        const color = value === 'real_anonymized' ? 'green' : value === 'synthetic' ? 'purple' : 'blue'
+        return (
+          <>
+            <Tag style={{ marginRight: 4 }} color={color}>{value || row.source}</Tag>
+            <Tag style={{ margin: 0 }}>{row.dataset_split}</Tag>
+          </>
+        )
       },
     },
     {
       title: '时间',
       dataIndex: 'created_at',
-      width: 150,
+      width: 92,
       render(value: string) {
-        return dayjs(value).format('MM-DD HH:mm')
+        return <span className="supportops-table-sub">{dayjs(value).format('MM-DD HH:mm')}</span>
       },
     },
   ]
@@ -72,7 +74,9 @@ export default function TicketPanel(props: Props) {
           <div className="supportops-section__title">知识与工单资产</div>
           <div className="supportops-section__meta">维护历史服务记录与 FAQ 检索语料 · 共 {props.total} 条工单</div>
         </div>
-        <Space>
+      </div>
+
+      <Space wrap className="supportops-toolbar">
           <Upload
             accept=".csv"
             showUploadList={false}
@@ -90,11 +94,12 @@ export default function TicketPanel(props: Props) {
             value={datasetType}
             onChange={setDatasetType}
             style={{ width: 150 }}
+            popupMatchSelectWidth={false}
             options={[
-              { value: 'tweetsumm', label: 'TweetSumm · 真实衍生' },
-              { value: 'msdialog', label: 'MSDialog · 真实匿名' },
-              { value: 'bitext', label: 'Bitext · 合成' },
-              { value: 'supportops_csv', label: '标准 CSV · 自有' },
+              { value: 'tweetsumm', label: 'TweetSumm · 真实', title: '来源：真实 Twitter 客服对话的人工摘要（real_derived）' },
+              { value: 'msdialog', label: 'MSDialog · 真实', title: '来源：真实匿名技术支持对话（real_anonymized，需官方授权获取）' },
+              { value: 'bitext', label: 'Bitext · 合成', title: '来源：机器合成客服数据（synthetic）' },
+              { value: 'supportops_csv', label: 'CSV · 自有', title: '来源：用户自有数据（user_provided）' },
             ]}
           />
           <Upload
@@ -126,8 +131,7 @@ export default function TicketPanel(props: Props) {
             aria-label="刷新工单数据"
             title="刷新工单数据"
           />
-        </Space>
-      </div>
+      </Space>
 
       {props.lastDocsUpload ? (
         <Alert
@@ -194,7 +198,7 @@ export default function TicketPanel(props: Props) {
         dataSource={props.tickets}
         loading={props.loading}
         pagination={false}
-        scroll={{ x: 900, y: 260 }}
+        scroll={{ y: 300 }}
       />
     </div>
   )

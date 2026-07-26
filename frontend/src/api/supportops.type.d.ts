@@ -148,6 +148,15 @@ declare namespace API {
     workflow?: string
   }
 
+  interface SupportSessionMessages {
+    session_id: string
+    messages: {
+      user_question: string
+      model_answer: string
+      created_at: string
+    }[]
+  }
+
   interface SupportHumanReview {
     type: 'supportops_human_review'
     session_id: string
