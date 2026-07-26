@@ -1,5 +1,7 @@
 # SupportOps Agent
 
+[![CI](https://github.com/Miralchile/SupportOps-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Miralchile/SupportOps-Agent/actions/workflows/ci.yml)
+
 SupportOps Agent 是一个本地可部署的智能客服工单分类、检索与自动处理系统。代码遵循最小化原则：检索与文档解析是自研的轻量模块（`backend/app/service/retrieval/`，jieba 分词 + pdfplumber/python-docx 解析 + Elasticsearch 混合检索），不携带任何本地模型权重，依赖清单只保留实际用到的包。
 
 ## 技术栈
