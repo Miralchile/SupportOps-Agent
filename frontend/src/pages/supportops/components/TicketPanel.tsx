@@ -1,5 +1,5 @@
-import { DownloadOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Alert, Button, List, Select, Space, Table, Tag, Upload } from 'antd'
+import { DownloadOutlined, EditOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Alert, Button, Form, Input, List, Modal, Select, Space, Table, Tag, Upload } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { useState } from 'react'
@@ -16,6 +16,7 @@ type Props = {
     file: File,
   ) => Promise<void>
   onUploadDocs: (files: File[]) => Promise<void>
+  onUpdateTicket: (id: number, data: { instruction: string; response: string }) => Promise<void>
   onRefresh: () => void
 }
 
@@ -36,6 +37,27 @@ const SPLIT_LABELS: Record<string, string> = {
 
 export default function TicketPanel(props: Props) {
   const [datasetType, setDatasetType] = useState<'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'>('supportops_csv')
+  const [editingTicket, setEditingTicket] = useState<API.SupportTicket>()
+  const [saving, setSaving] = useState(false)
+  const [editForm] = Form.useForm()
+
+  function openEdit(row: API.SupportTicket) {
+    setEditingTicket(row)
+    editForm.setFieldsValue({ instruction: row.instruction, response: row.response })
+  }
+
+  async function handleSaveEdit() {
+    if (!editingTicket) return
+    const values = await editForm.validateFields()
+    setSaving(true)
+    try {
+      await props.onUpdateTicket(editingTicket.id, values)
+      setEditingTicket(undefined)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const columns: ColumnsType<API.SupportTicket> = [
     {
       title: '问题',
@@ -219,12 +241,50 @@ export default function TicketPanel(props: Props) {
           rowExpandable: (row) => Boolean(row.response),
           expandedRowRender: (row) => (
             <div className="supportops-ticket-answer">
-              <div className="supportops-ticket-answer__label">处理方式 / 回答</div>
+              <div className="supportops-ticket-answer__label">
+                处理方式 / 回答
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<EditOutlined />}
+                  onClick={() => openEdit(row)}
+                >
+                  编辑
+                </Button>
+              </div>
               {row.response}
             </div>
           ),
         }}
       />
+
+      <Modal
+        title={`编辑工单 #${editingTicket?.id ?? ''}`}
+        open={Boolean(editingTicket)}
+        confirmLoading={saving}
+        onOk={handleSaveEdit}
+        onCancel={() => setEditingTicket(undefined)}
+        destroyOnClose
+        width={640}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            name="instruction"
+            label="问题"
+            rules={[{ required: true, whitespace: true, message: '请输入问题' }]}
+          >
+            <Input.TextArea rows={3} maxLength={8000} showCount />
+          </Form.Item>
+          <Form.Item
+            name="response"
+            label="处理方式 / 回答"
+            rules={[{ required: true, whitespace: true, message: '请输入处理方式' }]}
+            extra="保存后会走导入侧同样的清洗与脱敏，并同步重建该工单的检索索引与 embedding"
+          >
+            <Input.TextArea rows={6} maxLength={16000} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

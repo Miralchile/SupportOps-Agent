@@ -111,6 +111,29 @@ def bulk_insert(index_name: str, documents: List[Dict[str, Any]]) -> List[Any]:
     return list(errors or [])
 
 
+def delete_by_doc_id(index_name: str, doc_id: str) -> int:
+    """Delete every document belonging to ``doc_id``.
+
+    Ticket documents derive their ``_id`` from the content hash, so editing a
+    ticket and re-inserting would leave the old text behind as a stale match.
+    Returns the number of deleted documents, or -1 when the cleanup failed.
+    """
+    try:
+        es = get_es()
+        if not es.indices.exists(index=index_name):
+            return 0
+        result = es.delete_by_query(
+            index=index_name,
+            query={"term": {"doc_id": str(doc_id)}},
+            refresh=True,
+            conflicts="proceed",
+        )
+        return int(result.get("deleted", 0))
+    except Exception as exc:
+        logger.warning("delete_by_doc_id(%s) on %s failed: %s", doc_id, index_name, exc)
+        return -1
+
+
 def refresh(index_name: str) -> None:
     try:
         get_es().indices.refresh(index=index_name)

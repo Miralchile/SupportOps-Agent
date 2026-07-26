@@ -84,6 +84,13 @@ declare namespace API {
     total: number
   }
 
+  interface SupportTicketUpdateResult {
+    ticket: SupportTicket
+    indexed: number
+    stale_docs_removed: number
+    warnings: string[]
+  }
+
   interface SupportTrace {
     id?: number
     session_id?: string

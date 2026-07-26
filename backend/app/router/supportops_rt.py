@@ -20,6 +20,8 @@ from schemas.supportops import (
     SupportChatRequest,
     TicketResponse,
     TicketsListResponse,
+    TicketUpdateRequest,
+    TicketUpdateResult,
 )
 from service.auth import access_security
 from service.supportops.api_key_context import use_api_key_config
@@ -34,6 +36,8 @@ from service.supportops.api_key_service import (
     update_api_key,
 )
 from service.supportops.data_ingestion import ingest_dataset_content, ingest_ticket_csv, upload_support_docs
+from service.supportops.data_quality import revised_ticket_fields
+from service.supportops.similar_ticket_search import reindex_ticket
 from service.supportops.dataset_adapters import get_dataset_adapter, supported_datasets
 from service.supportops.support_agent import (
     get_pending_review,
@@ -318,6 +322,44 @@ async def get_tickets(
     return TicketsListResponse(
         tickets=[TicketResponse.model_validate(ticket) for ticket in tickets],
         total=total,
+    )
+
+
+@router.put("/tickets/{ticket_id}", response_model=TicketUpdateResult)
+async def update_ticket(
+    ticket_id: int,
+    payload: TicketUpdateRequest,
+    credentials: JwtAuthorizationCredentials = Security(access_security),
+    db: Session = Depends(get_db),
+):
+    """编辑工单的问题/处理方式。
+
+    文本走与导入相同的清洗、脱敏和质量重算，随后删除旧检索文档并重建
+    embedding 索引，保证列表展示与 agent 检索到的内容一致。
+    """
+    user_id = _current_user_id(credentials)
+    ticket = db.query(Ticket).filter(Ticket.user_id == user_id, Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="工单不存在")
+    try:
+        fields = revised_ticket_fields(payload.instruction, payload.response)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    for key, value in fields.items():
+        setattr(ticket, key, value)
+    db.commit()
+    db.refresh(ticket)
+
+    with use_api_key_config(get_active_api_key_config(db, user_id)):
+        index_result = reindex_ticket(user_id, ticket)
+    warnings = [str(error) for error in (index_result.get("errors") or [])[:5]]
+    if index_result.get("stale_docs_removed", 0) < 0:
+        warnings.append("旧检索文档清理失败，旧文本可能仍参与相似工单匹配")
+    return TicketUpdateResult(
+        ticket=TicketResponse.model_validate(ticket),
+        indexed=int(index_result.get("indexed") or 0),
+        stale_docs_removed=max(0, int(index_result.get("stale_docs_removed") or 0)),
+        warnings=warnings,
     )
 
 

@@ -123,3 +123,25 @@ def canonical_record(
         "content_hash": ticket_content_hash(clean_instruction, clean_response),
     }
 
+
+def revised_ticket_fields(instruction: Any, response: Any) -> Dict[str, Any]:
+    """编辑工单时复用导入侧的清洗与脱敏，保持治理字段与文本一致。
+
+    只返回随文本变化的字段；切分、来源等身份字段由调用方保持不变。
+    """
+    clean_instruction, question_pii = redact_pii(instruction)
+    clean_response, response_pii = redact_pii(response)
+    if not clean_instruction or not clean_response:
+        raise ValueError("问题与处理方式都不能为空")
+    pii_counts = dict(question_pii)
+    for key, count in response_pii.items():
+        pii_counts[key] = pii_counts.get(key, 0) + count
+    return {
+        "instruction": clean_instruction,
+        "response": clean_response,
+        "language": detect_language(clean_instruction, clean_response),
+        "pii_redacted": bool(pii_counts),
+        "quality_score": quality_score(clean_instruction, clean_response),
+        "content_hash": ticket_content_hash(clean_instruction, clean_response),
+    }
+

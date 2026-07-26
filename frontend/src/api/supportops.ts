@@ -117,6 +117,14 @@ export function tickets(options?: AxiosRequestConfig) {
   return request.get<API.SupportTicketsResponse>('/supportops/tickets', options)
 }
 
+export function updateTicket(
+  id: number,
+  data: { instruction: string; response: string },
+  options?: AxiosRequestConfig,
+) {
+  return request.put<API.SupportTicketUpdateResult>(`/supportops/tickets/${id}`, data, options)
+}
+
 export function metrics(options?: AxiosRequestConfig) {
   return request.get<API.SupportMetrics>('/supportops/metrics', options)
 }

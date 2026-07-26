@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from models.ticket import Ticket
 from service.retrieval.embedding import embedding_vector_field, generate_embedding
-from service.retrieval.es_client import bulk_insert, ensure_index
+from service.retrieval.es_client import bulk_insert, delete_by_doc_id, ensure_index
 from service.retrieval.search import hybrid_search
 from service.retrieval.text_utils import fine_grained_tokenize, tokenize
 from service.supportops.tools import simple_similarity
@@ -97,6 +97,19 @@ def bulk_index_tickets(
         except Exception as exc:
             errors.append({"batch_offset": offset, "error": str(exc)})
     return {"indexed": indexed, "errors": errors}
+
+
+def reindex_ticket(user_id: str, ticket: Ticket) -> Dict[str, Any]:
+    """编辑后重建单条工单的检索文档。
+
+    文档 ``_id`` 含内容哈希，直接重插会留下旧文本的陈旧文档，
+    所以先按 doc_id 删除旧文档，再带 embedding 重新索引。
+    """
+    index_name = ticket_index_name(user_id)
+    stale_docs_removed = delete_by_doc_id(index_name, str(ticket.id))
+    result = bulk_index_tickets(user_id, [ticket], include_embeddings=True)
+    result["stale_docs_removed"] = stale_docs_removed
+    return result
 
 
 def _fallback_search(db: Session, user_id: str, question: str, top_k: int) -> List[Dict[str, Any]]:

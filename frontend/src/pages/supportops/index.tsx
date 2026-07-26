@@ -275,6 +275,13 @@ export default function SupportOpsPage() {
     }
   }
 
+  async function handleUpdateTicket(id: number, data: { instruction: string; response: string }) {
+    const { data: result } = await api.supportops.updateTicket(id, data)
+    antdMessage.success(`工单已更新，检索索引已重建（${result.indexed} 条）`)
+    result.warnings?.forEach((warning) => antdMessage.warning(warning))
+    refreshData()
+  }
+
   async function handleUploadDocs(files: File[]) {
     try {
       const { data } = await api.supportops.uploadDocs({ files, session_id: sessionId })
@@ -963,6 +970,7 @@ export default function SupportOpsPage() {
                     onUploadTickets={handleUploadTickets}
                     onImportDataset={handleImportDataset}
                     onUploadDocs={handleUploadDocs}
+                    onUpdateTicket={handleUpdateTicket}
                     onRefresh={refreshData}
                   />
                   <ApiKeyPanel />

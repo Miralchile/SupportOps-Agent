@@ -35,6 +35,18 @@ class TicketResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TicketUpdateRequest(BaseModel):
+    instruction: str
+    response: str
+
+
+class TicketUpdateResult(BaseModel):
+    ticket: TicketResponse
+    indexed: int
+    stale_docs_removed: int
+    warnings: List[str] = []
+
+
 class AgentTraceResponse(BaseModel):
     id: int
     session_id: str
