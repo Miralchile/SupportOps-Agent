@@ -198,7 +198,6 @@ export default function SupportOpsPage() {
   const [ticketTotal, setTicketTotal] = useState(0)
   const [metrics, setMetrics] = useState<API.SupportMetrics>()
   const [lastDocsUpload, setLastDocsUpload] = useState<API.SupportUploadDocsResult>()
-  const [datasetImports, setDatasetImports] = useState<API.SupportDatasetImportJob[]>([])
   const [workflowStatus, setWorkflowStatus] = useState<{
     framework: string
     backend: string
@@ -208,17 +207,15 @@ export default function SupportOpsPage() {
   async function refreshData() {
     setTicketsLoading(true)
     try {
-      const [ticketRes, metricRes, workflowRes, importRes] = await Promise.all([
+      const [ticketRes, metricRes, workflowRes] = await Promise.all([
         api.supportops.tickets({ loading: false }),
         api.supportops.metrics({ loading: false }),
         api.supportops.workflowStatus({ loading: false }),
-        api.supportops.datasetImports({ loading: false }),
       ])
       setTickets(ticketRes.data.tickets)
       setTicketTotal(ticketRes.data.total)
       setMetrics(metricRes.data)
       setWorkflowStatus(workflowRes.data)
-      setDatasetImports(importRes.data)
     } finally {
       setTicketsLoading(false)
     }
@@ -966,7 +963,6 @@ export default function SupportOpsPage() {
                     total={ticketTotal}
                     loading={ticketsLoading}
                     lastDocsUpload={lastDocsUpload}
-                    importJobs={datasetImports}
                     onUploadTickets={handleUploadTickets}
                     onImportDataset={handleImportDataset}
                     onUploadDocs={handleUploadDocs}

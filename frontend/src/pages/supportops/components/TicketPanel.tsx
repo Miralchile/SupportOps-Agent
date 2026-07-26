@@ -9,7 +9,6 @@ type Props = {
   total: number
   loading?: boolean
   lastDocsUpload?: API.SupportUploadDocsResult
-  importJobs: API.SupportDatasetImportJob[]
   onUploadTickets: (file: File) => Promise<void>
   onImportDataset: (
     dataset: 'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog',
@@ -132,7 +131,7 @@ export default function TicketPanel(props: Props) {
         </div>
       </div>
 
-      <Space wrap className="supportops-toolbar">
+      <Space wrap size={12} className="supportops-toolbar">
           <Upload
             accept=".csv"
             showUploadList={false}
@@ -161,17 +160,6 @@ export default function TicketPanel(props: Props) {
               <DownOutlined style={{ fontSize: 10 }} />
             </Button>
           </Dropdown>
-          <input
-            ref={datasetInputRef}
-            type="file"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              const option = pendingDatasetRef.current
-              if (file && option) props.onImportDataset(option.key, file)
-              event.target.value = ''
-            }}
-          />
 
           <Upload
             multiple
@@ -192,6 +180,18 @@ export default function TicketPanel(props: Props) {
             title="刷新工单数据"
           />
       </Space>
+
+      <input
+        ref={datasetInputRef}
+        type="file"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          const option = pendingDatasetRef.current
+          if (file && option) props.onImportDataset(option.key, file)
+          event.target.value = ''
+        }}
+      />
 
       {props.lastDocsUpload ? (
         <Alert
@@ -227,27 +227,6 @@ export default function TicketPanel(props: Props) {
               />
             ) : null
           }
-        />
-      ) : null}
-
-      {props.importJobs[0] ? (
-        <Alert
-          className="supportops-upload-status"
-          type={props.importJobs[0].status === 'success' ? 'success' : 'warning'}
-          showIcon
-          message={
-            <Space wrap>
-              <strong>最近数据批次 #{props.importJobs[0].id}</strong>
-              <Tag color={props.importJobs[0].source_type === 'real_anonymized' ? 'green' : 'purple'}>
-                {props.importJobs[0].dataset_name} · {props.importJobs[0].source_type}
-              </Tag>
-              <span>接收 {props.importJobs[0].accepted_rows}</span>
-              <span>去重 {props.importJobs[0].duplicate_rows}</span>
-              <span>脱敏 {props.importJobs[0].pii_redacted_rows}</span>
-              <span>索引 {props.importJobs[0].indexed_rows}</span>
-            </Space>
-          }
-          description={`train ${props.importJobs[0].split_counts.train || 0} · validation ${props.importJobs[0].split_counts.validation || 0} · test ${props.importJobs[0].split_counts.test || 0}`}
         />
       ) : null}
 

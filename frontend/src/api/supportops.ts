@@ -28,10 +28,6 @@ export function importDataset(
   })
 }
 
-export function datasetImports(options?: AxiosRequestConfig) {
-  return request.get<API.SupportDatasetImportJob[]>('/supportops/dataset_imports', options)
-}
-
 export function uploadDocs(
   params: { files: File[]; session_id?: string },
   options?: AxiosRequestConfig,

@@ -58,27 +58,6 @@ declare namespace API {
     updated_at: string
   }
 
-  interface SupportDatasetImportJob {
-    id: number
-    dataset_name: string
-    dataset_version: string
-    source_filename: string
-    source_type: 'real_anonymized' | 'real_derived' | 'synthetic' | 'user_provided' | 'unknown'
-    status: string
-    checksum: string
-    total_rows: number
-    accepted_rows: number
-    rejected_rows: number
-    duplicate_rows: number
-    pii_redacted_rows: number
-    indexed_rows: number
-    split_counts: Record<string, number>
-    import_options: Record<string, unknown>
-    errors: unknown[]
-    started_at: string
-    completed_at?: string
-  }
-
   interface SupportTicketsResponse {
     tickets: SupportTicket[]
     total: number
