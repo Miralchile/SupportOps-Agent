@@ -1,8 +1,8 @@
-import { DownloadOutlined, EditOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Alert, Button, Form, Input, List, Modal, Select, Space, Table, Tag, Upload } from 'antd'
+import { DownloadOutlined, DownOutlined, EditOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Alert, Button, Dropdown, Form, Input, List, Modal, Space, Table, Tag, Upload } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 type Props = {
   tickets: API.SupportTicket[]
@@ -35,11 +35,29 @@ const SPLIT_LABELS: Record<string, string> = {
   unspecified: '未切分',
 }
 
+// 自有 CSV 走顶层"导入工单 CSV"按钮（带 embedding 索引），此处只列真正的外部数据集
+const DATASET_IMPORT_OPTIONS = [
+  { key: 'tweetsumm', label: 'TweetSumm · 真实', accept: '.jsonl', title: '真实 Twitter 客服对话的人工摘要（real_derived）' },
+  { key: 'msdialog', label: 'MSDialog · 真实', accept: '.json', title: '真实匿名技术支持对话（real_anonymized，需官方授权获取）' },
+  { key: 'bitext', label: 'Bitext · 合成', accept: '.csv', title: '机器合成客服数据（synthetic）' },
+] as const
+
 export default function TicketPanel(props: Props) {
-  const [datasetType, setDatasetType] = useState<'supportops_csv' | 'bitext' | 'tweetsumm' | 'msdialog'>('supportops_csv')
   const [editingTicket, setEditingTicket] = useState<API.SupportTicket>()
   const [saving, setSaving] = useState(false)
   const [editForm] = Form.useForm()
+  const datasetInputRef = useRef<HTMLInputElement>(null)
+  const pendingDatasetRef = useRef<(typeof DATASET_IMPORT_OPTIONS)[number]>()
+
+  function pickDatasetFile(key: string) {
+    const option = DATASET_IMPORT_OPTIONS.find((item) => item.key === key)
+    const input = datasetInputRef.current
+    if (!option || !input) return
+    pendingDatasetRef.current = option
+    input.accept = option.accept
+    input.value = ''
+    input.click()
+  }
 
   function openEdit(row: API.SupportTicket) {
     setEditingTicket(row)
@@ -128,28 +146,32 @@ export default function TicketPanel(props: Props) {
             </Button>
           </Upload>
 
-          <Select
-            value={datasetType}
-            onChange={setDatasetType}
-            style={{ width: 150 }}
-            popupMatchSelectWidth={false}
-            options={[
-              { value: 'supportops_csv', label: 'CSV · 自有', title: '来源：用户自有数据（user_provided）' },
-              { value: 'tweetsumm', label: 'TweetSumm · 真实', title: '来源：真实 Twitter 客服对话的人工摘要（real_derived）' },
-              { value: 'msdialog', label: 'MSDialog · 真实', title: '来源：真实匿名技术支持对话（real_anonymized，需官方授权获取）' },
-              { value: 'bitext', label: 'Bitext · 合成', title: '来源：机器合成客服数据（synthetic）' },
-            ]}
-          />
-          <Upload
-            accept={datasetType === 'msdialog' ? '.json' : datasetType === 'tweetsumm' ? '.jsonl' : '.csv'}
-            showUploadList={false}
-            beforeUpload={(file) => {
-              props.onImportDataset(datasetType, file)
-              return false
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: DATASET_IMPORT_OPTIONS.map((option) => ({
+                key: option.key,
+                label: <span title={option.title}>{option.label}</span>,
+              })),
+              onClick: ({ key }) => pickDatasetFile(key),
             }}
           >
-            <Button icon={<DownloadOutlined />}>导入外部数据集</Button>
-          </Upload>
+            <Button icon={<DownloadOutlined />}>
+              导入外部数据集
+              <DownOutlined style={{ fontSize: 10 }} />
+            </Button>
+          </Dropdown>
+          <input
+            ref={datasetInputRef}
+            type="file"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              const option = pendingDatasetRef.current
+              if (file && option) props.onImportDataset(option.key, file)
+              event.target.value = ''
+            }}
+          />
 
           <Upload
             multiple
