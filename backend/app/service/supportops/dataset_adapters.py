@@ -86,79 +86,6 @@ class SupportOpsCsvAdapter(DatasetAdapter):
         return self.result(records, rejected, errors)
 
 
-class MSDialogAdapter(DatasetAdapter):
-    dataset_name = "msdialog"
-    dataset_version = "complete"
-    source_type = "real_anonymized"
-
-    @staticmethod
-    def _dialogs(payload: Any) -> Iterable[tuple[str, Dict[str, Any]]]:
-        if isinstance(payload, dict):
-            for dialog_id, dialog in payload.items():
-                if isinstance(dialog, dict):
-                    yield str(dialog_id), dialog
-        elif isinstance(payload, list):
-            for index, dialog in enumerate(payload):
-                if isinstance(dialog, dict):
-                    yield str(dialog.get("dialog_id") or index), dialog
-
-    def adapt(self, content: bytes, filename: str, limit: int | None = None) -> AdaptedDataset:
-        try:
-            payload = json.loads(content.decode("utf-8-sig"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            return self.result([], 1, [f"MSDialog JSON 解析失败: {exc}"])
-
-        records: List[Dict[str, Any]] = []
-        errors: List[str] = []
-        rejected = 0
-        for dialog_id, dialog in self._dialogs(payload):
-            if limit is not None and len(records) >= limit:
-                break
-            utterances = sorted(
-                [item for item in dialog.get("utterances", []) if isinstance(item, dict)],
-                key=lambda item: int(item.get("utterance_pos") or 0),
-            )
-            user_turns = [item for item in utterances if str(item.get("actor_type", "")).lower() == "user"]
-            agent_turns = [item for item in utterances if str(item.get("actor_type", "")).lower() == "agent"]
-            selected = next((item for item in agent_turns if str(item.get("is_answer", "0")).lower() in {"1", "true"}), None)
-            answer = selected or (agent_turns[0] if agent_turns else None)
-            if not user_turns or not answer:
-                rejected += 1
-                errors.append(f"dialog {dialog_id}: 缺少用户问题或客服回复")
-                continue
-
-            raw_category = clean_markup(dialog.get("category") or "technical")
-            tags = clean_markup(user_turns[0].get("tags") or "").split()
-            record = canonical_record(
-                instruction=user_turns[0].get("utterance"),
-                response=answer.get("utterance"),
-                category=raw_category or "technical",
-                intent=f"{raw_category or 'technical'}_support",
-                source="msdialog",
-                source_type=self.source_type,
-                external_id=dialog_id,
-                conversation_id=dialog_id,
-                raw_category=raw_category,
-                has_selected_answer=selected is not None,
-                metadata={
-                    "dataset": "MSDialog",
-                    "dialog_time": dialog.get("dialog_time"),
-                    "title": clean_markup(dialog.get("title")),
-                    "turn_count": len(utterances),
-                    "question_dialog_acts": tags,
-                    "answer_affiliation": clean_markup(answer.get("affiliation")),
-                    "answer_vote": answer.get("vote"),
-                    "selected_answer": selected is not None,
-                },
-            )
-            if record is None:
-                rejected += 1
-                errors.append(f"dialog {dialog_id}: 清洗后问题或回复为空")
-                continue
-            records.append(record)
-        return self.result(records, rejected, errors)
-
-
 class TweetSummAdapter(DatasetAdapter):
     dataset_name = "tweetsumm"
     dataset_version = "emnlp-2021"
@@ -219,7 +146,6 @@ class TweetSummAdapter(DatasetAdapter):
 
 _ADAPTERS = {
     "supportops_csv": SupportOpsCsvAdapter,
-    "msdialog": MSDialogAdapter,
     "tweetsumm": TweetSummAdapter,
 }
 
@@ -235,7 +161,7 @@ def get_dataset_adapter(name: str) -> DatasetAdapter:
 def supported_datasets() -> List[Dict[str, str]]:
     unique = {
         adapter.dataset_name: adapter
-        for adapter in (SupportOpsCsvAdapter, MSDialogAdapter, TweetSummAdapter)
+        for adapter in (SupportOpsCsvAdapter, TweetSummAdapter)
     }
     return [
         {

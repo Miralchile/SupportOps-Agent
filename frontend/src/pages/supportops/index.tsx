@@ -258,20 +258,6 @@ export default function SupportOpsPage() {
     }
   }
 
-  async function handleImportDataset(
-    dataset: 'supportops_csv' | 'tweetsumm' | 'msdialog',
-    file: File,
-  ) {
-    try {
-      const { data } = await api.supportops.importDataset({ dataset, file })
-      antdMessage.success(data.message)
-      if (data.errors?.length) antdMessage.warning(String(data.errors[0]))
-      refreshData()
-    } catch (error) {
-      antdMessage.error((error as Error)?.message || '数据集导入失败')
-    }
-  }
-
   async function handleImportBundled(dataset: 'tweetsumm') {
     try {
       const { data } = await api.supportops.importBundledDataset(dataset)
@@ -977,7 +963,6 @@ export default function SupportOpsPage() {
                     loading={ticketsLoading}
                     lastDocsUpload={lastDocsUpload}
                     onUploadTickets={handleUploadTickets}
-                    onImportDataset={handleImportDataset}
                     onImportBundled={handleImportBundled}
                     onUploadDocs={handleUploadDocs}
                     onUpdateTicket={handleUpdateTicket}

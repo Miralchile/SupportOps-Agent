@@ -98,7 +98,6 @@ flowchart TD
 当前版本增加了带来源治理的数据集导入流水线，而不是把外部文件直接当作可信生产工单：
 
 - `TweetSumm`：来自真实 Twitter 客服对话的人工摘要，标记为 `real_derived`；仓库已保存官方 879/110/110 train/validation/test 数据和许可证，界面上可一键导入。
-- `MSDialog`：真实匿名技术支持对话，标记为 `real_anonymized`；已实现 JSON 适配器，但官方要求研究者申请访问，项目不会绕过授权分发数据，导入需自备文件。
 - 标准 CSV：用户自有数据，标记为 `user_provided`。
 
 导入时会执行 HTML 清理、常见邮箱/电话/银行卡/IP 脱敏、内容哈希与幂等去重、会话级数据切分、质量打分、批次审计，并分批写入 Elasticsearch。`dataset_import_jobs` 保存文件校验和、数据版本、来源真实性、接收/拒绝/去重/脱敏/索引数量和导入参数。
@@ -160,7 +159,7 @@ JWT_SECRET_KEY=supportops_local_secret
 - `POST /register`: 注册
 - `POST /supportops/upload_tickets`: 上传历史工单 CSV
 - `GET /supportops/datasets`: 查询支持的数据集及真实性类型
-- `POST /supportops/datasets/import?dataset=tweetsumm`: 导入标准 CSV、TweetSumm 或经授权的 MSDialog
+- `POST /supportops/datasets/import?dataset=tweetsumm`: 上传文件导入标准 CSV 或 TweetSumm
 - `POST /supportops/datasets/import_bundled?dataset=tweetsumm`: 一键导入仓库内置的 TweetSumm 数据
 - `GET /supportops/dataset_imports`: 查询数据导入批次与质量统计
 - `POST /supportops/upload_docs`: 上传 FAQ / 产品说明文档

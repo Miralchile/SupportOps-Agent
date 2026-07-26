@@ -2,7 +2,7 @@ import json
 import unittest
 
 from service.supportops.data_quality import canonical_record, deterministic_split, redact_pii
-from service.supportops.dataset_adapters import MSDialogAdapter, SupportOpsCsvAdapter, TweetSummAdapter
+from service.supportops.dataset_adapters import SupportOpsCsvAdapter, TweetSummAdapter
 
 
 class DataQualityTest(unittest.TestCase):
@@ -36,26 +36,6 @@ class DatasetAdapterTest(unittest.TestCase):
         result = SupportOpsCsvAdapter().adapt(content, "legacy.csv")
         self.assertEqual(len(result.records), 1)
         self.assertEqual(result.records[0]["source_type"], "user_provided")
-
-    def test_msdialog_uses_selected_answer_and_preserves_dialog_metadata(self):
-        payload = {
-            "20481": {
-                "category": "Word",
-                "title": "Spacing issue",
-                "utterances": [
-                    {"utterance_pos": 1, "actor_type": "User", "utterance": "How can I fix paragraph spacing?", "tags": "OQ"},
-                    {"utterance_pos": 2, "actor_type": "Agent", "utterance": "Try the layout menu.", "is_answer": 0},
-                    {"utterance_pos": 3, "actor_type": "Agent", "utterance": "Use Paragraph settings and reset spacing.", "is_answer": 1, "affiliation": "MVP"},
-                ],
-            }
-        }
-        result = MSDialogAdapter().adapt(json.dumps(payload).encode(), "msdialog.json")
-        self.assertEqual(len(result.records), 1)
-        record = result.records[0]
-        self.assertIn("reset spacing", record["response"])
-        self.assertEqual(record["source_type"], "real_anonymized")
-        self.assertEqual(record["conversation_id"], "20481")
-        self.assertTrue(record["metadata_json"]["selected_answer"])
 
     def test_tweetsumm_is_marked_real_derived_and_keeps_official_split(self):
         payload = {

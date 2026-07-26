@@ -18,7 +18,7 @@ from utils.database import SessionLocal
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Import SupportOps datasets with provenance and quality controls")
-    parser.add_argument("--dataset", required=True, choices=("supportops_csv", "msdialog", "tweetsumm"))
+    parser.add_argument("--dataset", required=True, choices=("supportops_csv", "tweetsumm"))
     parser.add_argument("--file", required=True, type=Path)
     parser.add_argument("--user-id", required=True)
     parser.add_argument("--with-embeddings", action="store_true", help="Generate embeddings during import (may incur API cost)")

@@ -99,7 +99,7 @@ async def list_supported_datasets(
 
 @router.post("/datasets/import")
 async def import_dataset(
-    dataset: str = Query(..., description="supportops_csv, tweetsumm 或 msdialog"),
+    dataset: str = Query(..., description="supportops_csv 或 tweetsumm"),
     file: UploadFile = File(...),
     credentials: JwtAuthorizationCredentials = Security(access_security),
     db: Session = Depends(get_db),
