@@ -179,7 +179,7 @@ export default function ApiKeyPanel() {
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 160,
       align: 'right' as const,
       render: (_: unknown, record: API.SupportApiKey) => (
         <Space size={4}>

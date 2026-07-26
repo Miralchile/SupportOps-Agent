@@ -388,6 +388,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  // 操作列是按钮不是文本，不参与省略号截断
+  .supportops-api-key-table .ant-table-tbody > tr > td:last-child { text-overflow: clip; }
   .supportops-section .ant-table-wrapper .ant-table-thead > tr > th { color: #475467; background: #f8fafc; font-size: 10px; font-weight: 700; }
 
   @media (max-width: 1120px) {
