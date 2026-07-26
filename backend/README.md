@@ -18,5 +18,8 @@ API 文档地址：http://localhost:8000/docs
 ```bash
 cd app
 python -m unittest discover -s tests -v
-python scripts/evaluate_supportops.py
+python scripts/evaluate_supportops.py --mode both --user-id 1
+python scripts/evaluate_retrieval.py --with-embeddings --user-id 1 --limit 100
 ```
+
+`--user-id` 会从数据库读取该用户的 active API Key（与生产一致的解析链路）；不带时使用环境变量。评测方法与实测结果见根目录 README 的「评测结果」章节。

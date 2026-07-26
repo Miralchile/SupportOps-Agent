@@ -309,40 +309,40 @@
       "mode": "llm",
       "cases": 60,
       "category": {
-        "accuracy": 0.5333,
-        "macro_f1": 0.5453
+        "accuracy": 0.95,
+        "macro_f1": 0.9509
       },
       "intent": {
-        "accuracy": 0.3,
-        "macro_f1": 0.1341
+        "accuracy": 0.8667,
+        "macro_f1": 0.8686
       },
       "escalation": {
-        "accuracy": 0.6667,
-        "precision": 0.6818,
-        "recall": 0.5357,
-        "f1": 0.6,
-        "false_negative_rate": 0.4643
+        "accuracy": 0.7333,
+        "precision": 0.6364,
+        "recall": 1.0,
+        "f1": 0.7778,
+        "false_negative_rate": 0.0
       },
       "escalation_by_tag": {
         "keyword": {
           "cases": 26,
-          "accuracy": 0.8077,
-          "precision": 0.8,
-          "recall": 0.8571,
-          "f1": 0.8276,
-          "false_negative_rate": 0.1429
+          "accuracy": 0.7692,
+          "precision": 0.7,
+          "recall": 1.0,
+          "f1": 0.8235,
+          "false_negative_rate": 0.0
         },
         "paraphrase": {
           "cases": 30,
-          "accuracy": 0.6333,
-          "precision": 1.0,
-          "recall": 0.2143,
-          "f1": 0.3529,
-          "false_negative_rate": 0.7857
+          "accuracy": 0.7667,
+          "precision": 0.6667,
+          "recall": 1.0,
+          "f1": 0.8,
+          "false_negative_rate": 0.0
         },
         "trap": {
           "cases": 4,
-          "accuracy": 0.0,
+          "accuracy": 0.25,
           "precision": 0.0,
           "recall": 0.0,
           "f1": 0.0,
@@ -351,14 +351,6 @@
       },
       "failures": [
         {
-          "id": "refund_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category refund->general",
-            "need_human True->False"
-          ]
-        },
-        {
           "id": "refund_04",
           "tag": "trap",
           "errors": [
@@ -366,86 +358,30 @@
           ]
         },
         {
-          "id": "refund_05",
-          "tag": "paraphrase",
-          "errors": [
-            "category refund->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "refund_06",
-          "tag": "paraphrase",
-          "errors": [
-            "category refund->general",
-            "need_human True->False"
-          ]
-        },
-        {
           "id": "refund_07",
           "tag": "paraphrase",
           "errors": [
-            "category refund->general"
-          ]
-        },
-        {
-          "id": "payment_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category payment->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "payment_03",
-          "tag": "paraphrase",
-          "errors": [
-            "category payment->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "payment_04",
-          "tag": "paraphrase",
-          "errors": [
-            "category payment->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "payment_05",
-          "tag": "trap",
-          "errors": [
             "need_human False->True"
+          ]
+        },
+        {
+          "id": "payment_01",
+          "tag": "keyword",
+          "errors": [
+            "category payment->refund"
           ]
         },
         {
           "id": "billing_01",
           "tag": "paraphrase",
           "errors": [
-            "category billing->general"
-          ]
-        },
-        {
-          "id": "billing_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category billing->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "billing_03",
-          "tag": "paraphrase",
-          "errors": [
-            "category billing->general"
+            "need_human False->True"
           ]
         },
         {
           "id": "account_03",
           "tag": "trap",
           "errors": [
-            "category account->general",
             "need_human False->True"
           ]
         },
@@ -474,138 +410,77 @@
           "id": "privacy_02",
           "tag": "paraphrase",
           "errors": [
-            "category privacy->general"
-          ]
-        },
-        {
-          "id": "privacy_04",
-          "tag": "paraphrase",
-          "errors": [
-            "category privacy->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "privacy_05",
-          "tag": "paraphrase",
-          "errors": [
-            "category privacy->account"
-          ]
-        },
-        {
-          "id": "complaint_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category complaint->general",
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "complaint_03",
-          "tag": "paraphrase",
-          "errors": [
-            "category complaint->general",
-            "need_human True->False"
+            "need_human False->True"
           ]
         },
         {
           "id": "complaint_04",
           "tag": "trap",
           "errors": [
-            "category delivery->complaint",
             "need_human False->True"
           ]
         },
         {
-          "id": "complaint_05",
+          "id": "technical_01",
           "tag": "keyword",
           "errors": [
-            "category technical->general"
-          ]
-        },
-        {
-          "id": "legal_01",
-          "tag": "keyword",
-          "errors": [
-            "category complaint->general"
-          ]
-        },
-        {
-          "id": "legal_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category complaint->general",
-            "need_human True->False"
+            "need_human False->True"
           ]
         },
         {
           "id": "technical_02",
           "tag": "paraphrase",
           "errors": [
-            "category technical->general"
+            "need_human False->True"
           ]
         },
         {
-          "id": "technical_03",
-          "tag": "paraphrase",
+          "id": "technical_04",
+          "tag": "keyword",
           "errors": [
-            "category technical->general"
+            "need_human False->True"
           ]
         },
         {
           "id": "technical_05",
           "tag": "paraphrase",
           "errors": [
-            "category technical->general"
+            "need_human False->True"
           ]
         },
         {
-          "id": "delivery_02",
+          "id": "technical_06",
           "tag": "keyword",
           "errors": [
-            "need_human True->False"
+            "need_human False->True"
           ]
         },
         {
           "id": "delivery_05",
           "tag": "paraphrase",
           "errors": [
-            "category delivery->general"
-          ]
-        },
-        {
-          "id": "delivery_06",
-          "tag": "keyword",
-          "errors": [
-            "need_human True->False"
-          ]
-        },
-        {
-          "id": "delivery_07",
-          "tag": "paraphrase",
-          "errors": [
-            "category delivery->general"
-          ]
-        },
-        {
-          "id": "product_02",
-          "tag": "paraphrase",
-          "errors": [
-            "category product->general"
+            "need_human False->True"
           ]
         },
         {
           "id": "product_03",
           "tag": "paraphrase",
           "errors": [
-            "category product->general"
+            "category product->account"
           ]
         },
         {
           "id": "product_05",
           "tag": "paraphrase",
           "errors": [
-            "category product->general"
+            "category product->technical"
+          ]
+        },
+        {
+          "id": "general_05",
+          "tag": "paraphrase",
+          "errors": [
+            "need_human False->True"
           ]
         }
       ]

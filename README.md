@@ -30,12 +30,14 @@ data/external/tweetsumm/ # TweetSumm 数据集与许可证
 
 ```mermaid
 flowchart TD
-  U[客服问题] --> P[Planner / Context]
+  U[客服问题] --> P[planner: 路由与工具规划]
   P --> I[intent_classifier]
   I --> R[FAQ RAG]
   I --> S[相似工单检索]
+  I --> T[business_tools: 订单/物流/退款资格]
   R --> E[escalation_checker]
   S --> E
+  T --> E
   E --> G[response_generator]
   G --> F[reflection]
   F -->|证据不足且未达重试上限| Q[query_rewrite]
@@ -45,26 +47,19 @@ flowchart TD
   H -->|approve / edit / reject| A[finalize]
   F -->|质量通过| A
   A --> O[Final Answer]
-  P --> T[(agent_traces)]
-  I --> T
-  R --> T
-  S --> T
-  E --> T
-  G --> T
-  F --> T
-  Q --> T
-  H --> T
 ```
 
-最终答案包含 `category`、`intent`、`risk_level`、`need_human`、自动回复、相似工单、引用依据、Agent 执行轨迹、重试次数、人工审核结果和下一步处理建议。
+`planner` 是真实决策节点：由 LLM 规划本轮的检索路径（FAQ / 相似工单）和业务工具调用（订单、物流、退款资格三个确定性 mock 工具），输出经白名单校验；无有效 API Key 时回退到确定性规划（订单号 + 话题检测）。被规划器跳过的路径在执行轨迹中显式记录为 `skipped`，工具结果贯穿风险判断、回复生成与反思，并随最终答案返回。所有节点的输入、输出、耗时和状态持久化到 `agent_traces` 表。
+
+最终答案包含 `category`、`intent`、`risk_level`、`need_human`、自动回复、工具查询结果、执行计划、相似工单、引用依据、Agent 执行轨迹、重试次数、人工审核结果和下一步处理建议。
 
 ### 状态与可靠性
 
 - `session_id` 与 JWT 用户 ID 共同映射为 LangGraph `thread_id`，避免跨用户会话碰撞。
 - PostgreSQL checkpointer 持久化每个节点的状态；服务重启后仍能恢复待审核工作流。
-- FAQ RAG 与相似工单召回使用并行节点，每个节点创建独立 SQLAlchemy Session。
-- `reflection` 是真实条件路由：证据不足时改写查询并重新检索，而不是只输出检查文案。
-- 投诉、退款、支付、隐私和账号安全等高风险场景通过 `interrupt` 暂停，必须人工批准、修改或拒绝后才能完成。
+- FAQ RAG、相似工单召回与业务工具是三路并行节点，每个节点创建独立 SQLAlchemy Session。
+- `reflection` 是真实条件路由：证据不足时改写查询并重新检索（重试上限由 `SUPPORTOPS_MAX_RETRIES` 配置，默认 1），业务工具在重试轮不重复执行。
+- 投诉、退款、支付、隐私、账号安全、法律风险和用户明确要求人工等高风险场景通过 `interrupt` 暂停，必须人工批准、修改或拒绝后才能完成。
 - 如果 PostgreSQL checkpoint 初始化失败，开发环境会降级到内存 saver；可通过 `GET /supportops/workflow/status` 检查 `durable` 是否为 `true`。
 
 ## 数据准备
@@ -180,19 +175,46 @@ cd backend/app
 python -m unittest discover -s tests -v
 ```
 
-运行内置客服意图与风险规则烟雾评测：
+## 评测结果
+
+评测可完整复现（容器内运行，`--user-id` 复用与生产一致的 API Key 解析链路）：
 
 ```bash
-cd backend/app
-python scripts/evaluate_supportops.py
+# 意图分类 + 风险升级：规则基线 vs LLM（qwen-plus），60 例人工构造评测集
+docker exec supportops_api python scripts/evaluate_supportops.py --mode both --user-id 1 --output evals/reports/intent_risk.json
+
+# 检索：关键词 BM25 vs 混合检索（+text-embedding-v3 kNN），TweetSumm 真实客服数据 100 例
+docker exec supportops_api python scripts/evaluate_retrieval.py --with-embeddings --user-id 1 --limit 100 --output evals/reports/retrieval.json
 ```
 
-内置 `evals/supportops_cases.jsonl` 是小规模回归集，用来防止基础规则退化，不应当作生产效果证明。投简历或部署前，应替换或扩充为人工标注的留出集，并补充 FAQ/工单的相关文档 ID，从而计算真实的 Recall@K 与 MRR。
+### 意图分类与风险升级（60 例，2026-07 实测）
+
+评测集按三层构造：`keyword`（规则关键词命中且标签一致，26 例）、`paraphrase`（无关键词、需语义理解，30 例）、`trap`（关键词误导，如"退款政策是什么"，4 例）。
+
+| 模式 | category 准确率 / Macro-F1 | intent 准确率 | 升级 Precision / Recall / F1 | 漏判率 FNR |
+|---|---|---|---|---|
+| 规则基线 | 0.533 / 0.545 | 0.300 | 0.682 / 0.536 / 0.600 | 0.464 |
+| LLM（qwen-plus） | **0.950 / 0.951** | **0.867** | 0.636 / **1.000** / **0.778** | **0.000** |
+
+分层升级召回：规则在 keyword 层 0.857、在 paraphrase 层跌到 0.214；LLM 两层均为 1.0。这组数字量化了纯关键词规则的语义盲区，也说明系统在无 API Key 时的降级路径能保住多少能力。
+
+已知局限：4 个 trap 难例（含风险关键词但实际是政策咨询）规则与 LLM 均误升级，体现当前提示词在资金相关词汇上刻意保守——高风险场景按"宁可误升、不可漏判"取舍，代价是精确率（0.682→0.636）。评测集为人工构造的小样本，用于对比方法差异，不代表生产分布。
+
+### 检索 Recall@K / MRR（TweetSumm 100 例，2026-07 实测）
+
+任务设计为 known-item 问答检索：索引仅存客服侧回答文本，用客户侧问题查询，正确答案是同一会话的回答——衡量生产中"新问题找历史标准回复"的问答不对称匹配，不存在字面重合捷径。
+
+| 模式 | Recall@1 | Recall@5 | MRR |
+|---|---|---|---|
+| 关键词（BM25） | 0.190 | 0.260 | 0.218 |
+| 混合（BM25 + kNN，w=0.6） | **0.240** | **0.350** | **0.277** |
+
+混合检索相对纯关键词：Recall@5 +35%，MRR +27%。评测索引按次创建、跑完即删，不污染业务索引。
 
 ## 后续可扩展方向
 
 - 增加人工客服处理状态流转和 SLA 规则。
 - 为 `tickets` 增加反馈闭环字段，如满意度、是否解决、人工处理结果。
 - 引入更细粒度的租户/角色权限。
-- 增加附件 OCR 和结构化订单/物流查询工具。
+- 把 mock 业务工具替换为真实订单/物流系统 API，并为 trap 类误升级补充针对性提示词或小样本分类器。
 - 使用人工处理结果和满意度构建生产反馈闭环，统计自动解决率与人工覆盖后的净收益。

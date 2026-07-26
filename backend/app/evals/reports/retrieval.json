@@ -9,6 +9,11 @@
       "recall_at_1": 0.19,
       "mrr": 0.2183,
       "recall_at_5": 0.26
+    },
+    "hybrid_w0.6": {
+      "recall_at_1": 0.24,
+      "mrr": 0.277,
+      "recall_at_5": 0.35
     }
   }
 }
