@@ -1,14 +1,16 @@
 FROM python:3.11.7-slim
 
-# PyPI mirror for faster builds in CN networks; harmless elsewhere.
-RUN pip config set global.index-url https://mirrors.cernet.edu.cn/pypi/web/simple && \
-    pip install --no-cache-dir --upgrade pip
+# Keep the package index configurable without coupling reproducible builds to
+# one regional mirror. Override with ``--build-arg PIP_INDEX_URL=...`` when a
+# private or regional index is required.
+ARG PIP_INDEX_URL=https://pypi.org/simple
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" --upgrade pip
 
 WORKDIR /app
 
 # Pure-Python / manylinux-wheel dependencies only: no compiler toolchain needed.
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements.txt
 
 COPY . /app
 RUN chmod +x /app/start.sh
