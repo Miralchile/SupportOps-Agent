@@ -21,6 +21,7 @@ def rewrite_query(
     question: str,
     classification: Dict[str, Any],
     messages: List[Dict[str, Any]],
+    context: str = "",
 ) -> Dict[str, str]:
     fallback = {
         "query": question,
@@ -29,9 +30,14 @@ def rewrite_query(
     prompt = QUERY_REWRITE_PROMPT.format(
         question=question,
         classification=compact(classification),
-        history=compact(messages[-6:]),
+        history=context or compact(messages[-6:]),
     )
-    result = call_json_llm(prompt, fallback)
+    result = call_json_llm(
+        prompt,
+        fallback,
+        prompt_version="query_rewriter.v2",
+        schema={"required": ["query"], "properties": {"query": {"type": "string"}}},
+    )
     query = normalize_text(result.get("query")) or question
     return {
         "query": query,

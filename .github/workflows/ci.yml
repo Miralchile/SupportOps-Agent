@@ -33,6 +33,9 @@ jobs:
       - name: Offline rules-mode evaluation smoke
         run: python scripts/evaluate_supportops.py --mode rules
 
+      - name: End-to-end agent scenario benchmark
+        run: python scripts/evaluate_agent.py --min-task-success 0.8
+
   frontend:
     name: Frontend typecheck & build
     runs-on: ubuntu-latest

@@ -13,7 +13,7 @@ def _tool_based_fallback(tool_results: List[Dict[str, Any]]) -> Optional[Dict[st
     missing = next((item for item in tool_results if item.get("status") == "missing_args"), None)
     if missing and all(item.get("status") in {"missing_args", "error"} for item in tool_results):
         return {
-            "reply": "您好，为了帮您查询订单/物流状态，请提供订单号（例如 ORD123456）。",
+            "reply": "您好，为了帮您查询订单或物流状态，请提供完整订单号。",
             "summary": "工具调用缺少订单号，需要追问用户。",
             "next_action": "追问用户",
             "citations": [{"type": "tool", "id": missing.get("tool")}],
@@ -151,18 +151,26 @@ def generate_response(
     escalation: Dict[str, Any],
     messages: List[Dict[str, Any]] | None = None,
     tool_results: List[Dict[str, Any]] | None = None,
+    context: str = "",
 ) -> Dict[str, Any]:
     fallback = _fallback_response(question, classification, sources, similar_tickets, escalation, tool_results)
     prompt = RESPONSE_GENERATION_PROMPT.format(
         question=question,
-        history=compact((messages or [])[-6:]),
+        history=context or compact((messages or [])[-6:]),
         classification=compact(classification),
         sources=compact(sources),
         similar_tickets=compact(similar_tickets),
         tool_results=compact(tool_results or []),
         escalation=compact(escalation),
     )
-    result = call_json_llm(prompt, fallback)
+    result = call_json_llm(
+        prompt,
+        fallback,
+        prompt_version="response_generator.v2",
+        schema={"required": ["reply", "next_action"], "properties": {
+            "reply": {"type": "string"}, "next_action": {"type": "string"},
+        }},
+    )
     reply = result.get("reply") or fallback["reply"]
     next_action = result.get("next_action") or fallback["next_action"]
     if escalation.get("need_human"):
@@ -198,6 +206,7 @@ def reflect_response(
     generated_response: Dict[str, Any],
     messages: List[Dict[str, Any]] | None = None,
     tool_results: List[Dict[str, Any]] | None = None,
+    context: str = "",
 ) -> Dict[str, Any]:
     has_evidence = bool(sources or similar_tickets or any(
         item.get("status") == "ok" for item in (tool_results or []) if isinstance(item, dict)
@@ -212,7 +221,7 @@ def reflect_response(
     }
     prompt = REFLECTION_PROMPT.format(
         question=question,
-        history=compact((messages or [])[-6:]),
+        history=context or compact((messages or [])[-6:]),
         classification=compact(classification),
         sources=compact(sources),
         similar_tickets=compact(similar_tickets),
@@ -220,7 +229,14 @@ def reflect_response(
         escalation=compact(escalation),
         generated_response=compact(generated_response),
     )
-    result = call_json_llm(prompt, fallback)
+    result = call_json_llm(
+        prompt,
+        fallback,
+        prompt_version="reflection.v2",
+        schema={"required": ["need_follow_up", "must_human"], "properties": {
+            "need_follow_up": {"type": "boolean"}, "must_human": {"type": "boolean"},
+        }},
+    )
     return {
         "missing_knowledge": bool(result.get("missing_knowledge", fallback["missing_knowledge"])),
         "low_confidence": bool(result.get("low_confidence", fallback["low_confidence"])),

@@ -34,6 +34,11 @@ class FallbackPlanTest(unittest.TestCase):
         self.assertEqual(plan["tools"], [])
         self.assertEqual(sorted(plan["routes"]), sorted(RETRIEVAL_ROUTES))
 
+    @rules_only
+    def test_specific_logistics_lookup_without_order_id_preserves_missing_arg(self):
+        plan = make_plan("帮我查一下物流")
+        self.assertEqual(plan["tools"], [{"name": "query_logistics", "args": {"order_id": ""}}])
+
 
 class ValidatePlanTest(unittest.TestCase):
     def test_garbage_routes_fall_back_to_all(self):
