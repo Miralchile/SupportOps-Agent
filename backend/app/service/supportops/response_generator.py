@@ -90,6 +90,39 @@ def _fallback_response(
     tool_results: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     if escalation.get("need_human"):
+        refund = next(
+            (
+                item
+                for item in (tool_results or [])
+                if isinstance(item, dict)
+                and item.get("tool") == "check_refund_eligibility"
+                and item.get("status") == "ok"
+            ),
+            None,
+        )
+        if refund:
+            order_id = refund.get("order_id")
+            window_days = refund.get("window_days")
+            days_since_receipt = refund.get("days_since_receipt")
+            if refund.get("eligible"):
+                reply = (
+                    f"您好，订单 {order_id} 的退款资格已完成核验：当前仍在 {window_days} 天退款窗口内"
+                    f"（已签收 {days_since_receipt} 天），符合退款申请条件。"
+                    "由于退款操作需要人工审核，我已将订单信息和核验结果转交人工客服继续处理。"
+                )
+            else:
+                reply = (
+                    f"您好，订单 {order_id} 的退款资格已完成核验：当前已超出 {window_days} 天退款窗口"
+                    f"（已签收 {days_since_receipt} 天），不符合自动退款条件。"
+                    "如需申请特殊退款，我已将订单信息和核验结果转交人工客服审核。"
+                )
+            return {
+                "reply": reply,
+                "summary": "基于退款资格工具结果转交人工审核。",
+                "next_action": "转人工",
+                "citations": [{"type": "tool", "id": "check_refund_eligibility"}],
+            }
+
         reply = (
             "您好，已识别到该问题可能涉及较高风险场景。"
             "我会先记录您的诉求，并建议转人工客服继续核实处理。"
