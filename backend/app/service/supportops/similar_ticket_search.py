@@ -11,6 +11,7 @@ from service.retrieval.embedding import embedding_vector_field, generate_embeddi
 from service.retrieval.es_client import bulk_insert, delete_by_doc_id, ensure_index
 from service.retrieval.search import hybrid_search
 from service.retrieval.text_utils import fine_grained_tokenize, tokenize
+from service.supportops.ticket_ranking import rerank_ticket_candidates
 from service.supportops.tools import simple_similarity
 
 
@@ -62,9 +63,12 @@ def _build_ticket_documents(
             "category_kwd": ticket.category,
             "intent_kwd": ticket.intent,
             "source_kwd": ticket.source,
+            "language_kwd": ticket.language,
+            "dataset_split_kwd": ticket.dataset_split,
+            "quality_score_flt": float(ticket.quality_score or 0.0),
             "available_int": 1,
-            "create_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "create_timestamp_flt": now.timestamp(),
+            "create_time": (ticket.created_at or now).strftime("%Y-%m-%d %H:%M:%S"),
+            "create_timestamp_flt": (ticket.created_at or now).timestamp(),
         }
         if embedding:
             doc[embedding_vector_field()] = embedding
@@ -114,7 +118,7 @@ def reindex_ticket(user_id: str, ticket: Ticket) -> Dict[str, Any]:
 
 def _fallback_search(db: Session, user_id: str, question: str, top_k: int) -> List[Dict[str, Any]]:
     tickets = db.query(Ticket).filter(Ticket.user_id == user_id).all()
-    ranked = []
+    base_scores: Dict[int, float] = {}
     for ticket in tickets:
         score = max(
             simple_similarity(question, ticket.instruction),
@@ -122,24 +126,14 @@ def _fallback_search(db: Session, user_id: str, question: str, top_k: int) -> Li
         )
         if score <= 0:
             continue
-        ranked.append((score, ticket))
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    return [
-        {
-            "id": ticket.id,
-            "instruction": ticket.instruction,
-            "category": ticket.category,
-            "intent": ticket.intent,
-            "response": ticket.response,
-            "score": round(score, 4),
-        }
-        for score, ticket in ranked[:top_k]
-    ]
+        base_scores[ticket.id] = score
+    candidates = [ticket for ticket in tickets if ticket.id in base_scores]
+    return rerank_ticket_candidates(question, candidates, base_scores, top_k)
 
 
 def search_similar_tickets(db: Session, user_id: str, question: str, top_k: int = 5) -> List[Dict[str, Any]]:
     try:
-        chunks = hybrid_search(ticket_index_name(user_id), question, top_k=top_k)
+        chunks = hybrid_search(ticket_index_name(user_id), question, top_k=max(top_k * 3, 10))
         ticket_ids: List[int] = []
         scores: Dict[int, float] = {}
         for chunk in chunks:
@@ -155,22 +149,7 @@ def search_similar_tickets(db: Session, user_id: str, question: str, top_k: int 
             return _fallback_search(db, user_id, question, top_k)
 
         tickets = db.query(Ticket).filter(Ticket.user_id == user_id, Ticket.id.in_(ticket_ids)).all()
-        ticket_by_id = {ticket.id: ticket for ticket in tickets}
-        ordered = []
-        for ticket_id in ticket_ids:
-            ticket = ticket_by_id.get(ticket_id)
-            if not ticket:
-                continue
-            ordered.append(
-                {
-                    "id": ticket.id,
-                    "instruction": ticket.instruction,
-                    "category": ticket.category,
-                    "intent": ticket.intent,
-                    "response": ticket.response,
-                    "score": round(scores.get(ticket.id, 0.0), 4),
-                }
-            )
-        return ordered[:top_k] or _fallback_search(db, user_id, question, top_k)
+        ordered = rerank_ticket_candidates(question, tickets, scores, top_k)
+        return ordered or _fallback_search(db, user_id, question, top_k)
     except Exception:
         return _fallback_search(db, user_id, question, top_k)

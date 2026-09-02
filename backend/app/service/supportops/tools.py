@@ -4,9 +4,8 @@ import re
 from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Optional
 
-from openai import OpenAI
-
 from service.supportops.api_key_context import get_runtime_config_value
+from service.supportops.llm_gateway import gateway
 
 
 PLACEHOLDER_KEYS = {
@@ -64,26 +63,15 @@ def safe_json_loads(value: Any, default: Optional[Any] = None) -> Any:
     return default
 
 
-def call_json_llm(prompt: str, default: Dict[str, Any]) -> Dict[str, Any]:
-    api_key = clean_env_value("DASHSCOPE_API_KEY")
-    base_url = clean_env_value("DASHSCOPE_BASE_URL")
-    if not has_valid_dashscope_key(api_key):
-        return default
-
-    try:
-        client = OpenAI(api_key=api_key, base_url=base_url)
-        completion = client.chat.completions.create(
-            model=clean_env_value("SUPPORTOPS_MODEL", "qwen-plus"),
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            stream=False,
-            timeout=30,
-        )
-        content = completion.choices[0].message.content if completion.choices else ""
-        parsed = safe_json_loads(content, default)
-        return parsed if isinstance(parsed, dict) else default
-    except Exception:
-        return default
+def call_json_llm(
+    prompt: str,
+    default: Dict[str, Any],
+    *,
+    prompt_version: str = "unversioned",
+    schema: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Compatibility facade over the observable LLM gateway."""
+    return gateway.generate_json(prompt, default, prompt_version=prompt_version, schema=schema).parsed
 
 
 def normalize_text(value: Any) -> str:

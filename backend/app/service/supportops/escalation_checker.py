@@ -22,6 +22,7 @@ def check_escalation(
     similar_tickets: List[Dict[str, Any]],
     messages: List[Dict[str, Any]] | None = None,
     tool_results: List[Dict[str, Any]] | None = None,
+    context: str = "",
 ) -> Dict[str, Any]:
     matched_rules = match_risk_rules(question)
     classification_risk = []
@@ -41,13 +42,21 @@ def check_escalation(
 
     prompt = ESCALATION_CHECK_PROMPT.format(
         question=question,
-        history=compact((messages or [])[-6:]),
+        history=context or compact((messages or [])[-6:]),
         classification=compact(classification),
         sources=compact(sources),
         similar_tickets=compact(similar_tickets),
         tool_results=compact(tool_results or []),
     )
-    result = call_json_llm(prompt, fallback)
+    result = call_json_llm(
+        prompt,
+        fallback,
+        prompt_version="escalation_checker.v2",
+        schema={"required": ["need_human", "risk_level"], "properties": {
+            "need_human": {"type": "boolean"},
+            "risk_level": {"type": "string", "enum": ["low", "medium", "high"]},
+        }},
+    )
 
     llm_rules = result.get("matched_rules") if isinstance(result.get("matched_rules"), list) else []
     final_rules = sorted(set(hard_rules + [str(rule) for rule in llm_rules]))

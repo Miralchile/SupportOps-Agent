@@ -79,6 +79,19 @@ declare namespace API {
     tool_output?: string | Record<string, unknown>
     latency_ms: number
     status: string
+    llm_calls?: {
+      provider: string
+      model: string
+      latency_ms: number
+      input_tokens: number
+      output_tokens: number
+      status: string
+      error_type?: string | null
+      fallback_used: boolean
+      fallback_reason?: string | null
+      prompt_version: string
+      estimated_cost_usd?: number | null
+    }[]
     created_at?: string
   }
 
@@ -96,6 +109,8 @@ declare namespace API {
     intent: string
     response: string
     score: number
+    retrieval_score?: number
+    ranking_features?: Record<string, unknown>
   }
 
   interface SupportToolResult {
@@ -122,6 +137,11 @@ declare namespace API {
     sources: SupportSource[]
     tool_results?: SupportToolResult[]
     plan?: SupportPlan
+    decision_consistency?: {
+      consistent: boolean
+      conflicts?: string[]
+    }
+    conversation_context?: Record<string, unknown>
     agent_trace: SupportTrace[]
     next_action: string
     summary?: string

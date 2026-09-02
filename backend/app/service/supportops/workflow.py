@@ -19,8 +19,11 @@ from typing_extensions import TypedDict
 from service.supportops.api_key_context import use_api_key_config
 from service.supportops.business_tools import execute_tool
 from service.supportops.checkpointing import get_checkpointer
+from service.supportops.context_builder import context_builder
+from service.supportops.decision_consistency import check_decision_consistency
 from service.supportops.escalation_checker import check_escalation
 from service.supportops.intent_classifier import classify_intent
+from service.supportops.llm_gateway import capture_llm_observations
 from service.supportops.planner import make_plan
 from service.supportops.query_rewriter import rewrite_query
 from service.supportops.response_generator import generate_response, reflect_response
@@ -52,6 +55,9 @@ class SupportOpsState(TypedDict, total=False):
     human_decision: Dict[str, Any]
     trace_events: Annotated[List[Dict[str, Any]], operator.add]
     final_answer: Dict[str, Any]
+    conversation_context: Dict[str, Any]
+    context_prompt: str
+    decision_consistency: Dict[str, Any]
 
 
 @dataclass
@@ -97,23 +103,33 @@ def _execute(
 ) -> tuple[Any, Dict[str, Any]]:
     started = time.perf_counter()
     status = "success"
+    llm_calls: List[Dict[str, Any]] = []
     try:
         context = use_api_key_config(runtime.api_config) if runtime.api_config else nullcontext()
         with context:
-            output = fn()
+            with capture_llm_observations() as observations:
+                output = fn()
+                llm_calls = list(observations)
     except Exception as exc:
         status = "failed"
         output = {"error": str(exc)}
 
+    trace_output = output
+    if llm_calls:
+        if isinstance(output, dict):
+            trace_output = {**output, "_llm_calls": llm_calls}
+        else:
+            trace_output = {"result": output, "_llm_calls": llm_calls}
     trace = {
         "turn_id": state["turn_id"],
         "attempt": state.get("retry_count", 0),
         "step_order": step_order,
         "tool_name": tool_name,
         "tool_input": tool_input,
-        "tool_output": output,
+        "tool_output": trace_output,
         "latency_ms": int((time.perf_counter() - started) * 1000),
         "status": status,
+        "llm_calls": llm_calls,
     }
     _record_trace(runtime, state, trace)
     return output, trace
@@ -145,6 +161,27 @@ def _planned_routes(state: SupportOpsState) -> List[str]:
     return routes if routes else ["rag_search", "similar_ticket_search"]
 
 
+def _context_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext]) -> Dict[str, Any]:
+    output, trace = _execute(
+        state,
+        runtime.context,
+        0,
+        "context_builder",
+        {"question": state["question"], "message_count": len(state.get("messages", []))},
+        lambda: context_builder.build(
+            state["question"],
+            state.get("messages", []),
+            state.get("conversation_context", {}),
+        ).to_dict(),
+    )
+    context = output if isinstance(output, dict) else {}
+    return {
+        "conversation_context": context,
+        "context_prompt": context_builder.render(context),
+        "trace_events": [trace],
+    }
+
+
 def _planner_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext]) -> Dict[str, Any]:
     fallback = {
         "routes": ["rag_search", "similar_ticket_search"],
@@ -154,10 +191,10 @@ def _planner_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCont
     output, trace = _execute(
         state,
         runtime.context,
-        0,
+        1,
         "planner",
         {"question": state["question"], "max_retries": runtime.context.max_retries},
-        lambda: make_plan(state["question"], state.get("messages", [])),
+        lambda: make_plan(state["question"], state.get("messages", []), state.get("context_prompt", "")),
     )
     return {"plan": _validated(PlanResult, output, fallback), "trace_events": [trace]}
 
@@ -172,13 +209,30 @@ def _classify_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
     output, trace = _execute(
         state,
         runtime.context,
-        1,
+        2,
         "intent_classifier",
         {"question": state["question"], "history_turns": len(state.get("messages", []))},
-        lambda: classify_intent(state["question"], [], state.get("messages", [])),
+        lambda: classify_intent(
+            state["question"], [], state.get("messages", []), state.get("context_prompt", "")
+        ),
     )
     return {
         "classification": _validated(IntentClassification, output, fallback),
+        "trace_events": [trace],
+    }
+
+
+def _consistency_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext]) -> Dict[str, Any]:
+    output, trace = _execute(
+        state,
+        runtime.context,
+        3,
+        "decision_consistency",
+        {"plan": state.get("plan", {}), "classification": state.get("classification", {})},
+        lambda: check_decision_consistency(state.get("plan", {}), state.get("classification", {})),
+    )
+    return {
+        "decision_consistency": output if isinstance(output, dict) else {"consistent": False},
         "trace_events": [trace],
     }
 
@@ -187,14 +241,14 @@ def _rag_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext]
     from service.supportops.support_agent import search_support_docs
 
     if "rag_search" not in _planned_routes(state):
-        trace = _skipped_trace(runtime.context, state, 2, "rag_search", "规划器判定本轮无需知识库检索")
+        trace = _skipped_trace(runtime.context, state, 4, "rag_search", "规划器判定本轮无需知识库检索")
         return {"sources": [], "trace_events": [trace]}
 
     query = state.get("retrieval_query") or state["question"]
     output, trace = _execute(
         state,
         runtime.context,
-        2,
+        4,
         "rag_search",
         {"query": query, "top_k": 5},
         lambda: search_support_docs(state["user_id"], query),
@@ -206,7 +260,7 @@ def _similar_tickets_node(state: SupportOpsState, runtime: Runtime[SupportOpsRun
     from service.supportops.similar_ticket_search import search_similar_tickets
 
     if "similar_ticket_search" not in _planned_routes(state):
-        trace = _skipped_trace(runtime.context, state, 3, "similar_ticket_search", "规划器判定本轮无需相似工单召回")
+        trace = _skipped_trace(runtime.context, state, 5, "similar_ticket_search", "规划器判定本轮无需相似工单召回")
         return {"similar_tickets": [], "trace_events": [trace]}
 
     query = state.get("retrieval_query") or state["question"]
@@ -221,7 +275,7 @@ def _similar_tickets_node(state: SupportOpsState, runtime: Runtime[SupportOpsRun
     output, trace = _execute(
         state,
         runtime.context,
-        3,
+        5,
         "similar_ticket_search",
         {"query": query, "top_k": 5},
         search,
@@ -236,7 +290,7 @@ def _business_tools_node(state: SupportOpsState, runtime: Runtime[SupportOpsRunt
 
     planned = (state.get("plan") or {}).get("tools") or []
     if not planned:
-        trace = _skipped_trace(runtime.context, state, 4, "business_tools", "规划器未安排业务工具调用")
+        trace = _skipped_trace(runtime.context, state, 6, "business_tools", "规划器未安排业务工具调用")
         return {"tool_results": [], "trace_events": [trace]}
 
     def run() -> List[Dict[str, Any]]:
@@ -245,7 +299,7 @@ def _business_tools_node(state: SupportOpsState, runtime: Runtime[SupportOpsRunt
     output, trace = _execute(
         state,
         runtime.context,
-        4,
+        6,
         "business_tools",
         {"tools": planned},
         run,
@@ -263,7 +317,7 @@ def _risk_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext
     output, trace = _execute(
         state,
         runtime.context,
-        5,
+        7,
         "escalation_checker",
         {"question": state["question"], "classification": state.get("classification", {})},
         lambda: check_escalation(
@@ -273,6 +327,7 @@ def _risk_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeContext
             state.get("similar_tickets", []),
             state.get("messages", []),
             state.get("tool_results", []),
+            state.get("context_prompt", ""),
         ),
     )
     return {"escalation": _validated(EscalationResult, output, fallback), "trace_events": [trace]}
@@ -288,7 +343,7 @@ def _generate_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
     output, trace = _execute(
         state,
         runtime.context,
-        6,
+        8,
         "response_generator",
         {
             "question": state["question"],
@@ -305,6 +360,7 @@ def _generate_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
             state.get("escalation", {}),
             state.get("messages", []),
             state.get("tool_results", []),
+            state.get("context_prompt", ""),
         ),
     )
     return {"generated_response": _validated(GeneratedResponse, output, fallback), "trace_events": [trace]}
@@ -322,7 +378,7 @@ def _reflect_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCont
     output, trace = _execute(
         state,
         runtime.context,
-        7,
+        9,
         "reflection",
         {"question": state["question"], "draft": state.get("generated_response", {})},
         lambda: reflect_response(
@@ -334,6 +390,7 @@ def _reflect_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCont
             state.get("generated_response", {}),
             state.get("messages", []),
             state.get("tool_results", []),
+            state.get("context_prompt", ""),
         ),
     )
     return {"reflection": _validated(ReflectionResult, output, fallback), "trace_events": [trace]}
@@ -353,10 +410,15 @@ def _rewrite_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCont
     output, trace = _execute(
         state,
         runtime.context,
-        8,
+        10,
         "query_rewrite",
         {"question": state["question"], "attempt": state.get("retry_count", 0) + 1},
-        lambda: rewrite_query(state["question"], state.get("classification", {}), state.get("messages", [])),
+        lambda: rewrite_query(
+            state["question"],
+            state.get("classification", {}),
+            state.get("messages", []),
+            state.get("context_prompt", ""),
+        ),
     )
     query = output.get("query") if isinstance(output, dict) else state["question"]
     return {
@@ -396,7 +458,7 @@ def _human_review_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntim
         response["next_action"] = "转人工"
 
     output = {"action": action, "reviewer_note": str(decision.get("reviewer_note") or "")}
-    _, trace = _execute(state, runtime.context, 9, "human_review", {"risk": state.get("escalation", {})}, lambda: output)
+    _, trace = _execute(state, runtime.context, 11, "human_review", {"risk": state.get("escalation", {})}, lambda: output)
     return {"human_decision": output, "generated_response": response, "trace_events": [trace]}
 
 
@@ -417,8 +479,14 @@ def _finalize_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
         "human_reviewed": bool(human_decision),
         "retry_count": state.get("retry_count", 0),
     }
-    _, trace = _execute(state, runtime.context, 10, "finalize", {"turn_id": state["turn_id"]}, lambda: trace_output)
+    _, trace = _execute(state, runtime.context, 12, "finalize", {"turn_id": state["turn_id"]}, lambda: trace_output)
     traces = _current_traces(state, trace)
+    updated_context = context_builder.build(
+        state["question"],
+        state.get("messages", []),
+        state.get("conversation_context", {}),
+        state.get("tool_results", []),
+    ).to_dict()
     final_answer = {
         "user_question": state["question"],
         "category": state.get("classification", {}).get("category", "general"),
@@ -430,6 +498,8 @@ def _finalize_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
         "sources": state.get("sources", []),
         "tool_results": state.get("tool_results", []),
         "plan": state.get("plan", {}),
+        "decision_consistency": state.get("decision_consistency", {}),
+        "conversation_context": updated_context,
         "agent_trace": traces,
         "next_action": next_action,
         "summary": generated.get("summary", ""),
@@ -457,14 +527,18 @@ def _finalize_node(state: SupportOpsState, runtime: Runtime[SupportOpsRuntimeCon
     return {
         "final_answer": final_answer,
         "messages": [{"role": "assistant", "content": final_answer["reply"]}],
+        "conversation_context": updated_context,
+        "context_prompt": context_builder.render(updated_context),
         "trace_events": [trace],
     }
 
 
 def build_supportops_graph(checkpointer: Any = None):
     builder = StateGraph(SupportOpsState, context_schema=SupportOpsRuntimeContext)
+    builder.add_node("context_builder", _context_node)
     builder.add_node("planner", _planner_node)
     builder.add_node("intent_classifier", _classify_node)
+    builder.add_node("decision_consistency", _consistency_node)
     builder.add_node("rag_search", _rag_node)
     builder.add_node("similar_ticket_search", _similar_tickets_node)
     builder.add_node("business_tools", _business_tools_node)
@@ -475,11 +549,15 @@ def build_supportops_graph(checkpointer: Any = None):
     builder.add_node("human_review", _human_review_node)
     builder.add_node("finalize", _finalize_node)
 
-    builder.add_edge(START, "planner")
-    builder.add_edge("planner", "intent_classifier")
-    builder.add_edge("intent_classifier", "rag_search")
-    builder.add_edge("intent_classifier", "similar_ticket_search")
-    builder.add_edge("intent_classifier", "business_tools")
+    builder.add_edge(START, "context_builder")
+    # Planner and intent classification share the same immutable context and
+    # execute concurrently; the consistency node is their synchronization bar.
+    builder.add_edge("context_builder", "planner")
+    builder.add_edge("context_builder", "intent_classifier")
+    builder.add_edge(["planner", "intent_classifier"], "decision_consistency")
+    builder.add_edge("decision_consistency", "rag_search")
+    builder.add_edge("decision_consistency", "similar_ticket_search")
+    builder.add_edge("decision_consistency", "business_tools")
     builder.add_edge(["rag_search", "similar_ticket_search", "business_tools"], "escalation_checker")
     builder.add_edge("escalation_checker", "response_generator")
     builder.add_edge("response_generator", "reflection")
@@ -529,4 +607,5 @@ def new_turn_state(
         "retry_count": 0,
         "human_decision": {},
         "final_answer": {},
+        "decision_consistency": {},
     }

@@ -32,11 +32,14 @@ data/external/tweetsumm/ # TweetSumm 数据集与许可证
 
 ```mermaid
 flowchart TD
-  U[客服问题] --> P[planner: 路由与工具规划]
-  P --> I[intent_classifier]
-  I --> R[FAQ RAG]
-  I --> S[相似工单检索]
-  I --> T[business_tools: 订单/物流/退款资格]
+  U[客服问题] --> C[context_builder: 工作记忆与上下文预算]
+  C --> P[planner: 路由与工具规划]
+  C --> I[intent_classifier]
+  P --> D[decision_consistency]
+  I --> D
+  D --> R[FAQ RAG]
+  D --> S[相似工单召回 + 元数据重排]
+  D --> T[Tool Registry: 订单/物流/退款资格]
   R --> E[escalation_checker]
   S --> E
   T --> E
@@ -50,6 +53,16 @@ flowchart TD
   F -->|质量通过| A
   A --> O[Final Answer]
 ```
+
+## Agent 基础设施
+
+项目参考 [Hello-Agents](https://github.com/datawhalechina/Hello-Agents) 对 Tool、LLM、Memory、Context 与 Evaluation 的职责划分，并按客服场景实现了更窄的工程抽象：
+
+- `ToolRegistry` 是工具能力的唯一来源。每个 `ToolDefinition` 声明 JSON Schema、版本、权限、副作用、人工确认、超时和重试元数据；`ToolResult` 统一返回状态、数据、错误码、耗时和尝试次数。Planner 的工具描述直接由 Registry 生成。
+- `LLMGateway` 区分缺少 Key、鉴权失败、限流、超时、网络异常、供应商错误、JSON 解析错误和 Schema 错误。每次调用记录 provider、model、prompt version、token、延迟、fallback 原因和可配置成本估算，节点轨迹与前端均可查看。
+- `ContextBuilder` 将 checkpoint 与对话记忆分开：checkpoint负责恢复图执行；working memory保存订单号等关键实体、当前话题、会话摘要和近期工具事实。所有语义节点共享同一份受 token budget 约束的上下文。
+- Planner 与 Intent Classifier 并行执行，`decision_consistency` 在工具执行前检查意图与工具是否冲突。
+- 相似工单在 BM25+kNN 召回后，结合 `quality_score`、意图、类别、语言和时效进行第二阶段重排，并返回可解释的 ranking features。
 
 `planner` 是真实决策节点：由 LLM 规划本轮的检索路径（FAQ / 相似工单）和业务工具调用（订单、物流、退款资格三个确定性 mock 工具），输出经白名单校验；无有效 API Key 时回退到确定性规划（订单号 + 话题检测）。被规划器跳过的路径在执行轨迹中显式记录为 `skipped`，工具结果贯穿风险判断、回复生成与反思，并随最终答案返回。所有节点的输入、输出、耗时和状态持久化到 `agent_traces` 表。
 
@@ -77,7 +90,8 @@ flowchart TD
 
 - `session_id` 与 JWT 用户 ID 共同映射为 LangGraph `thread_id`，避免跨用户会话碰撞。
 - PostgreSQL checkpointer 持久化每个节点的状态；服务重启后仍能恢复待审核工作流。
-- FAQ RAG、相似工单召回与业务工具是三路并行节点，每个节点创建独立 SQLAlchemy Session。
+- Planner 与意图分类并行；完成一致性检查后，FAQ RAG、相似工单召回与业务工具再三路并行，每个数据库节点创建独立 SQLAlchemy Session。
+- 结构化 working memory 可在无 LLM 降级路径中继承多轮实体，例如首轮给出订单号、次轮只说“那这个还能退款吗”。
 - `reflection` 是真实条件路由：证据不足时改写查询并重新检索（重试上限由 `SUPPORTOPS_MAX_RETRIES` 配置，默认 1），业务工具在重试轮不重复执行。
 - 投诉、退款、支付、隐私、账号安全、法律风险和用户明确要求人工等高风险场景通过 `interrupt` 暂停，必须人工批准、修改或拒绝后才能完成。
 - 如果 PostgreSQL checkpoint 初始化失败，开发环境会降级到内存 saver；可通过 `GET /supportops/workflow/status` 检查 `durable` 是否为 `true`。
@@ -193,6 +207,15 @@ JWT_SECRET_KEY=supportops_local_secret
 cd backend/app
 python -m unittest discover -s tests -v
 ```
+
+端到端 Agent Scenario Benchmark：
+
+```bash
+cd backend/app
+python scripts/evaluate_agent.py --min-task-success 0.8
+```
+
+该基准覆盖任务成功率、路由、工具选择、参数、答案事实一致性、人工升级精确率/召回率、高风险误自动回复、fallback rate、LLM 调用次数、token、估算成本与延迟。默认数据集 `evals/supportops_agent_scenarios.jsonl` 是小规模确定性回归集，包含显式订单、缺参追问、风险升级和跨轮订单号继承；它用于防止工程回归，不代表生产分布或线上效果。CI 会同时运行组件评测和端到端基准。
 
 ## 评测结果
 

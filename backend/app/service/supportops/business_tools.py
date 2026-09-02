@@ -19,32 +19,13 @@ import hashlib
 import re
 from typing import Any, Dict, List, Optional
 
+from service.supportops.tool_runtime import ToolDefinition, ToolParameter, ToolRegistry
+
 # Fixed base date keeps outputs stable across runs (no wall-clock dependency).
 _BASE_DATE = datetime.date(2026, 1, 1)
 
 _ORDER_ID_RE = re.compile(r"\b(ORD[-_]?\d{4,})\b", re.IGNORECASE)
 _FALLBACK_ID_RE = re.compile(r"(?:订单号?|单号|order)\s*[:：#]?\s*([A-Za-z0-9-]{6,20})", re.IGNORECASE)
-
-TOOL_SPECS: List[Dict[str, Any]] = [
-    {
-        "name": "query_order",
-        "description": "查询订单状态、金额与支付状态。需要参数 order_id。",
-        "args": {"order_id": "订单号，如 ORD123456"},
-    },
-    {
-        "name": "query_logistics",
-        "description": "查询订单的物流轨迹与最新状态。需要参数 order_id。",
-        "args": {"order_id": "订单号，如 ORD123456"},
-    },
-    {
-        "name": "check_refund_eligibility",
-        "description": "检查订单是否在退款窗口内以及是否可自动退款。需要参数 order_id。",
-        "args": {"order_id": "订单号，如 ORD123456"},
-    },
-]
-
-TOOL_NAMES = {spec["name"] for spec in TOOL_SPECS}
-
 
 def extract_order_id(text: str) -> Optional[str]:
     """Pull an order id out of free text; None when nothing plausible found."""
@@ -133,35 +114,60 @@ def check_refund_eligibility(order_id: str) -> Dict[str, Any]:
     }
 
 
-_HANDLERS = {
-    "query_order": query_order,
-    "query_logistics": query_logistics,
-    "check_refund_eligibility": check_refund_eligibility,
-}
+ORDER_ID_PARAMETER = ToolParameter(
+    name="order_id",
+    type="string",
+    description="订单号，如 ORD123456",
+)
+
+
+tool_registry = ToolRegistry()
+for definition in (
+    ToolDefinition(
+        name="query_order",
+        description="查询订单状态、金额与支付状态。",
+        handler=query_order,
+        parameters=(ORDER_ID_PARAMETER,),
+        output_schema={"type": "object", "required": ["order_status", "payment_status"]},
+        permissions=("support:read",),
+    ),
+    ToolDefinition(
+        name="query_logistics",
+        description="查询订单的物流轨迹与最新状态。",
+        handler=query_logistics,
+        parameters=(ORDER_ID_PARAMETER,),
+        output_schema={"type": "object", "required": ["current_status", "checkpoints"]},
+        permissions=("support:read",),
+    ),
+    ToolDefinition(
+        name="check_refund_eligibility",
+        description="只读检查订单是否在退款窗口内；不会发起退款。",
+        handler=check_refund_eligibility,
+        parameters=(ORDER_ID_PARAMETER,),
+        output_schema={"type": "object", "required": ["eligible", "window_days"]},
+        permissions=("support:read",),
+    ),
+):
+    tool_registry.register(definition)
+
+
+# Compatibility exports are generated from the registry, eliminating the old
+# hand-maintained split between specs, names, and handlers.
+TOOL_SPECS: List[Dict[str, Any]] = tool_registry.planner_specs()
+TOOL_NAMES = tool_registry.names()
 
 
 def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute one whitelisted tool call; never raises."""
-    result: Dict[str, Any] = {"tool": name, "args": dict(args or {})}
-    handler = _HANDLERS.get(name)
-    if handler is None:
-        result.update({"status": "error", "message": f"未知工具: {name}"})
-        return result
-    order_id = str((args or {}).get("order_id") or "").strip()
-    if not order_id:
-        result.update({"status": "missing_args", "message": "缺少订单号，需要向用户询问"})
-        return result
-    try:
-        result.update(handler(order_id))
-    except Exception as exc:  # defensive: a tool failure must not kill the graph
-        result.update({"status": "error", "message": str(exc)})
-    return result
+    """Compatibility wrapper over the typed ToolRegistry runtime."""
+    return tool_registry.execute(name, args).to_dict()
 
 
 def tool_specs_prompt() -> str:
-    """Render tool specs for the planner prompt."""
+    """Render registry-owned JSON schemas for the planner prompt."""
     lines = []
-    for spec in TOOL_SPECS:
-        args = ", ".join(f"{key}({value})" for key, value in spec["args"].items())
-        lines.append(f"- {spec['name']}: {spec['description']} 参数: {args}")
+    for spec in tool_registry.planner_specs():
+        properties = spec["input_schema"]["properties"]
+        args = ", ".join(f"{key}({value.get('description', '')})" for key, value in properties.items())
+        safety = "有副作用/需确认" if spec["requires_confirmation"] else "只读"
+        lines.append(f"- {spec['name']} v{spec['version']}: {spec['description']} 参数: {args}; {safety}")
     return "\n".join(lines)
