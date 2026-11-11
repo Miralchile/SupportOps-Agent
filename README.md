@@ -192,13 +192,6 @@ JWT_SECRET_KEY=supportops_local_secret
 - `POST /supportops/api_keys/{key_id}/test`: 测试已保存的 API Key
 - `DELETE /supportops/api_keys/{key_id}`: 删除 API Key
 
-## 简历写法
-
-- 基于 FastAPI、React、PostgreSQL、Elasticsearch 和 JWT 搭建本地可部署的客服工单 Agent 系统，支持工单 CSV 清洗入库、FAQ 文档 RAG 检索、相似历史工单召回和 SSE 实时执行轨迹展示；检索层为自研轻量模块（jieba 分词 + BM25/kNN 加权融合，Embedding 缺失时自动降级）。
-- 基于 LangGraph 1.x 将意图识别、并行混合检索、风险升级、回复生成与质量反思建模为可恢复状态图，并将节点输入、输出、耗时和状态持久化到 `agent_traces`。
-- 通过 PostgreSQL Checkpoint 实现会话级多轮状态、失败恢复与 Human-in-the-loop；高风险工单可暂停并由人工批准、修改或拒绝后恢复执行。
-- 建立客服 Agent 离线评测工具，覆盖意图分类 Macro-F1、风险升级 Precision/Recall/F1/漏判率以及检索 Recall@K/MRR。
-
 ## 测试与离线评测
 
 后端状态图和指标测试：
@@ -229,7 +222,7 @@ docker exec supportops_api python scripts/evaluate_supportops.py --mode both --u
 docker exec supportops_api python scripts/evaluate_retrieval.py --with-embeddings --user-id 1 --limit 100 --output evals/reports/retrieval.json
 ```
 
-### 意图分类与风险升级（60 例，2026-07 实测）
+### 意图分类与风险升级（60 例）
 
 评测集按三层构造：`keyword`（规则关键词命中且标签一致，26 例）、`paraphrase`（无关键词、需语义理解，30 例）、`trap`（关键词误导，如"退款政策是什么"，4 例）。
 
@@ -242,7 +235,7 @@ docker exec supportops_api python scripts/evaluate_retrieval.py --with-embedding
 
 已知局限：4 个 trap 难例（含风险关键词但实际是政策咨询）规则与 LLM 均误升级，体现当前提示词在资金相关词汇上刻意保守——高风险场景按"宁可误升、不可漏判"取舍，代价是精确率（0.682→0.636）。评测集为人工构造的小样本，用于对比方法差异，不代表生产分布。
 
-### 检索 Recall@K / MRR（TweetSumm 100 例，2026-07 实测）
+### 检索 Recall@K / MRR（TweetSumm 100 例）
 
 任务设计为 known-item 问答检索：索引仅存客服侧回答文本，用客户侧问题查询，正确答案是同一会话的回答——衡量生产中"新问题找历史标准回复"的问答不对称匹配，不存在字面重合捷径。
 
