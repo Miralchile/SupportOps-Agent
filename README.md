@@ -56,7 +56,7 @@ flowchart TD
 
 ## Agent 基础设施
 
-项目参考 [Hello-Agents](https://github.com/datawhalechina/Hello-Agents) 对 Tool、LLM、Memory、Context 与 Evaluation 的职责划分，并按客服场景实现了更窄的工程抽象：
+Agent 基础设施按工具执行、模型调用、会话记忆、上下文构建和评测划分职责：
 
 - `ToolRegistry` 是工具能力的唯一来源。每个 `ToolDefinition` 声明 JSON Schema、版本、权限、副作用、人工确认、超时和重试元数据；`ToolResult` 统一返回状态、数据、错误码、耗时和尝试次数。Planner 的工具描述直接由 Registry 生成。
 - `LLMGateway` 区分缺少 Key、鉴权失败、限流、超时、网络异常、供应商错误、JSON 解析错误和 Schema 错误。每次调用记录 provider、model、prompt version、token、延迟、fallback 原因和可配置成本估算，节点轨迹与前端均可查看。
@@ -98,7 +98,7 @@ flowchart TD
 
 ## 数据准备
 
-历史工单 CSV 兼容 Hugging Face Bitext customer support dataset 字段：
+历史工单 CSV 使用以下字段：
 
 - `instruction`: 用户问题
 - `category`: 问题大类
@@ -157,13 +157,13 @@ JWT_SECRET_KEY=supportops_local_secret
 
 首次启动时应用会自动创建全部数据库表（`SQLAlchemy create_all`），无需手动执行迁移。
 
-当前版本只支持 DashScope / 阿里云百炼作为完整 AI 供应商。DeepSeek 可用于对话类接口，但不能完整覆盖本项目的 FAQ / 工单 embedding 检索链路，所以没有作为可替代提供商开放。
+当前版本使用 DashScope / 阿里云百炼提供对话模型和 Embedding 服务。
 
 ## 使用流程
 
 1. 注册并登录。
 2. 在 `API Key 管理` 中新增 DashScope API Key，点击 `测试当前配置`，确认对话模型和 Embedding 模型可用。
-3. 上传 `sample_tickets.csv` 或自己的 Bitext 格式 CSV。
+3. 上传 `sample_tickets.csv` 或包含上述字段的自有工单 CSV。
 4. 上传 FAQ / 产品说明文档。
 5. 在客服 Agent 对话区输入问题，查看实时执行轨迹、引用来源、相似工单、风险等级和最终处理建议。
 

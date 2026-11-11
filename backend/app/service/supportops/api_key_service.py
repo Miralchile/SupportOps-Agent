@@ -28,7 +28,7 @@ def _ensure_dashscope_provider(provider: str | None = DASHSCOPE_PROVIDER) -> str
     if normalized != DASHSCOPE_PROVIDER:
         raise HTTPException(
             status_code=400,
-            detail="当前版本仅支持 DashScope / 阿里云百炼 API Key。DeepSeek 可用于对话模型，但不能完整覆盖本项目的 Embedding 检索链路。",
+            detail="当前版本仅支持 DashScope / 阿里云百炼 API Key。",
         )
     return DASHSCOPE_PROVIDER
 
